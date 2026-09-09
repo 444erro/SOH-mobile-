@@ -1,4 +1,6 @@
-# Ship of Harkinian Android Port
+# Ship of Harkinian Android Port , 
+
+This port is a mix of the PC version and the "Water Dish" version; I created it myself because I didn't know there was another mobile version that supported online play. In this version, you can send messages between players and customize the HUD however you like. Will I keep updating it? I don't think so. If it runs poorly on your phone, DON'T EXPECT MIRACLES...
 
 A port of Ship of Harkinian to Android.
 
