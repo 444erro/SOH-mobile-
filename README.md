@@ -1,18 +1,20 @@
-# Ship of Harkinian Android Port
+# Ship of Harkinian Mobile online
 
 A port of Ship of Harkinian to Android.
 
-Original Repository: [HarbourMasters/Shipwright](https://github.com/HarbourMasters/Shipwright)
+> * If you want to create a version yourself, I recommend getting the PC version's files first theys are more recent then porting them to Android!
+
+> * Original Repository: [HarbourMasters/Shipwright](https://github.com/HarbourMasters/Shipwright)
 
 Supported (probably): Android 7.0+ (OpenGL ES 3.0+ required)
 
-Tested On: Android 15
+Tested On: Android 11 and 15
 
 ## Installation
 
 Installation instructions:
 
-1. Install the apk [from here](https://github.com/Waterdish/Shipwright-Android/releases).
+1. Install the apk [from here](https://github.com/444erro/SOH-mobile-/releases).
 
 2. Open the app and allow all file permissions. It will ask to set up files. Let it do its thing.
 
