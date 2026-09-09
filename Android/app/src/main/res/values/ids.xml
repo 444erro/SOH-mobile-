@@ -1,0 +1,4 @@
+<resources>
+    <item name="hud_default_x" type="id" />
+    <item name="hud_default_y" type="id" />
+</resources>
