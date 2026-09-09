@@ -13,10 +13,10 @@ void SohMenu::AddMenuRandomizer() {
     // Seed Settings
     WidgetPath path = { "Randomizer", "Seed Settings", SECTION_COLUMN_1 };
     AddSidebarEntry("Randomizer", path.sidebarName, 1);
-    AddWidget(path, "Popout Randomizer Settings Window", WIDGET_WINDOW_BUTTON)
+    AddWidget(path, "Open Randomizer Settings", WIDGET_WINDOW_BUTTON)
         .CVar(CVAR_WINDOW("RandomizerSettings"))
         .WindowName("Randomizer Settings")
-        .Options(WindowButtonOptions().Tooltip("Enables the separate Randomizer Settings Window."));
+        .Options(WindowButtonOptions().Tooltip("Opens seed generation and all randomizer settings."));
 
     // Enhancements
     path.sidebarName = "Enhancements";
@@ -90,6 +90,30 @@ void SohMenu::AddMenuRandomizer() {
         })
         .Options(FloatSliderOptions().Min(5.0f).Max(15.0f).Format("%.2f").DefaultValue(10.0f).Tooltip(
             "The size of the item when it is picked up."));
+
+    // The Android randomizer window already owns these editors. Expose direct,
+    // touch-friendly sidebar entries while preserving its proven generation logic.
+    path.sidebarName = "Starting Items";
+    path.column = SECTION_COLUMN_1;
+    AddSidebarEntry("Randomizer", path.sidebarName, 1);
+    AddWidget(path, "Open Starting Items", WIDGET_WINDOW_BUTTON)
+        .CVar(CVAR_WINDOW("RandomizerSettings"))
+        .WindowName("Randomizer Settings")
+        .Options(WindowButtonOptions().Tooltip("Open Randomizer Settings and select the Starting Items tab."));
+
+    path.sidebarName = "Locations";
+    AddSidebarEntry("Randomizer", path.sidebarName, 1);
+    AddWidget(path, "Open Excluded Locations", WIDGET_WINDOW_BUTTON)
+        .CVar(CVAR_WINDOW("RandomizerSettings"))
+        .WindowName("Randomizer Settings")
+        .Options(WindowButtonOptions().Tooltip("Open Randomizer Settings and select the Locations tab."));
+
+    path.sidebarName = "Tricks/Glitches";
+    AddSidebarEntry("Randomizer", path.sidebarName, 1);
+    AddWidget(path, "Open Tricks/Glitches", WIDGET_WINDOW_BUTTON)
+        .CVar(CVAR_WINDOW("RandomizerSettings"))
+        .WindowName("Randomizer Settings")
+        .Options(WindowButtonOptions().Tooltip("Open Randomizer Settings and select the Tricks/Glitches tab."));
 
     // Plandomizer
     path.sidebarName = "Plandomizer";

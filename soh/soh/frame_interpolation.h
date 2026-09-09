@@ -16,6 +16,10 @@ void FrameInterpolation_StartRecord(void);
 
 void FrameInterpolation_StopRecord(void);
 
+// Temporarily excludes a draw section from interpolation without starting a new frame recording.
+int FrameInterpolation_PauseRecord(void);
+void FrameInterpolation_ResumeRecord(int wasRecording);
+
 void FrameInterpolation_RecordOpenChild(const void* a, int b);
 
 void FrameInterpolation_RecordCloseChild(void);

@@ -9,6 +9,7 @@
 #include <unordered_map>
 #include <libultraship/libultra/types.h>
 #include <spdlog/fmt/fmt.h>
+#include "soh/OTRGlobals.h"
 
 namespace UIWidgets {
 
@@ -1033,6 +1034,69 @@ bool CVarRadioButton(const char* text, const char* cvarName, int32_t id, const R
     }
 
     return ret;
+}
+
+static const std::pair<const char*, int32_t> sButtonMap[] = {
+    { "A", BTN_A }, { "B", BTN_B }, { "Z", BTN_Z }, { "Start", BTN_START },
+    { "D-Up", BTN_DUP }, { "D-Down", BTN_DDOWN }, { "D-Left", BTN_DLEFT }, { "D-Right", BTN_DRIGHT },
+    { "L", BTN_L }, { "R", BTN_R }, { "C-Up", BTN_CUP }, { "C-Down", BTN_CDOWN },
+    { "C-Left", BTN_CLEFT }, { "C-Right", BTN_CRIGHT },
+    { "Modifier 1", BTN_CUSTOM_MODIFIER1 }, { "Modifier 2", BTN_CUSTOM_MODIFIER2 },
+};
+
+bool BtnSelector(const char* label, int32_t* value, const BtnSelectorOptions& options) {
+    bool dirty = false;
+    int32_t currentValue = *value;
+    ImGui::PushID(label);
+    ImGui::TextWrapped("%s", label);
+
+    for (const auto& [buttonName, buttonMask] : sButtonMap) {
+        if ((currentValue & buttonMask) == 0) {
+            continue;
+        }
+        if (Button(buttonName, ButtonOptions().Tooltip("Remove this button").Color(Colors::Gray).Size(Sizes::Inline))) {
+            currentValue &= ~buttonMask;
+            dirty = true;
+        }
+        const float nextWidth = ImGui::CalcTextSize("Modifier 2").x + ImGui::GetStyle().FramePadding.x * 2.0f;
+        if (ImGui::GetCursorPosX() + nextWidth < ImGui::GetContentRegionMax().x) {
+            ImGui::SameLine();
+        }
+    }
+
+    if (Button("+", ButtonOptions().Tooltip("Add a button").Color(options.color).Size(Sizes::Inline))) {
+        ImGui::OpenPopup("Add Button");
+    }
+    if (ImGui::BeginPopup("Add Button")) {
+        for (const auto& [buttonName, buttonMask] : sButtonMap) {
+            if ((currentValue & buttonMask) == 0 && ImGui::MenuItem(buttonName)) {
+                currentValue |= buttonMask;
+                dirty = true;
+            }
+        }
+        ImGui::EndPopup();
+    }
+    ImGui::SameLine();
+    if (Button("Reset", ButtonOptions().Tooltip("Restore the default combination").Color(options.color).Size(Sizes::Inline))) {
+        currentValue = options.defaultValue;
+        dirty = true;
+    }
+    ImGui::PopID();
+    if (dirty) {
+        *value = currentValue;
+    }
+    return dirty;
+}
+
+bool CVarBtnSelector(const char* label, const char* cvarName, const BtnSelectorOptions& options) {
+    int32_t value = CVarGetInteger(cvarName, options.defaultValue);
+    if (!BtnSelector(label, &value, options)) {
+        return false;
+    }
+    CVarSetInteger(cvarName, value);
+    Ship::Context::GetInstance()->GetWindow()->GetGui()->SaveConsoleVariablesNextFrame();
+    ShipInit::Init(cvarName);
+    return true;
 }
 
 void DrawFlagArray32(const std::string& name, uint32_t& flags, Colors color) {

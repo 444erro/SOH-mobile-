@@ -20,26 +20,7 @@ void Window::Draw() {
     const float margin = 30.0f;
     const float padding = 10.0f;
 
-    int position = CVarGetInteger(CVAR_SETTING("Notifications.Position"), 3);
-
-    // Top Left
-    ImVec2 basePosition;
-    switch (position) {
-        case 0: // Top Left
-            basePosition = ImVec2(vp->Pos.x + margin, vp->Pos.y + margin);
-            break;
-        case 1: // Top Right
-            basePosition = ImVec2(vp->Pos.x + vp->Size.x - margin, vp->Pos.y + margin);
-            break;
-        case 2: // Bottom Left
-            basePosition = ImVec2(vp->Pos.x + margin, vp->Pos.y + vp->Size.y - margin);
-            break;
-        case 3: // Bottom Right
-            basePosition = ImVec2(vp->Pos.x + vp->Size.x - margin, vp->Pos.y + vp->Size.y - margin);
-            break;
-        case 4: // Hidden
-            return;
-    }
+    const int globalPosition = CVarGetInteger(CVAR_SETTING("Notifications.Position"), 3);
 
     ImGui::PushStyleColor(ImGuiCol_WindowBg,
                           ImVec4(0, 0, 0, CVarGetFloat(CVAR_SETTING("Notifications.BgOpacity"), 0.5f)));
@@ -48,7 +29,34 @@ void Window::Draw() {
 
     for (int index = 0; index < notifications.size(); ++index) {
         auto& notification = notifications[index];
-        int inverseIndex = -ABS(index - (notifications.size() - 1));
+        const int position = notification.position >= 0 ? notification.position : globalPosition;
+        if (position == 4) {
+            continue;
+        }
+        int stackIndex = 0;
+        for (int previous = index + 1; previous < notifications.size(); ++previous) {
+            const int previousPosition = notifications[previous].position >= 0 ? notifications[previous].position
+                                                                                : globalPosition;
+            if (previousPosition == position) {
+                stackIndex++;
+            }
+        }
+
+        ImVec2 basePosition;
+        switch (position) {
+            case 0:
+                basePosition = ImVec2(vp->Pos.x + margin, vp->Pos.y + margin);
+                break;
+            case 1:
+                basePosition = ImVec2(vp->Pos.x + vp->Size.x - margin, vp->Pos.y + margin);
+                break;
+            case 2:
+                basePosition = ImVec2(vp->Pos.x + margin, vp->Pos.y + vp->Size.y - margin);
+                break;
+            default:
+                basePosition = ImVec2(vp->Pos.x + vp->Size.x - margin, vp->Pos.y + vp->Size.y - margin);
+                break;
+        }
 
         ImGui::SetNextWindowViewport(vp->ID);
         if (notification.remainingTime < 4.0f) {
@@ -63,25 +71,27 @@ void Window::Draw() {
                          ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoMove |
                          ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings);
 
-        ImGui::SetWindowFontScale(CVarGetFloat(CVAR_SETTING("Notifications.Size"), 1.8f)); // Make this adjustable
+        ImGui::SetWindowFontScale(notification.fontScale > 0.0f
+                                      ? notification.fontScale
+                                      : CVarGetFloat(CVAR_SETTING("Notifications.Size"), 1.8f));
 
         ImVec2 notificationPos;
         switch (position) {
             case 0: // Top Left
-                notificationPos =
-                    ImVec2(basePosition.x, basePosition.y + ((ImGui::GetWindowSize().y + padding) * inverseIndex));
+                notificationPos = ImVec2(basePosition.x,
+                                         basePosition.y + ((ImGui::GetWindowSize().y + padding) * stackIndex));
                 break;
             case 1: // Top Right
                 notificationPos = ImVec2(basePosition.x - ImGui::GetWindowSize().x,
-                                         basePosition.y + ((ImGui::GetWindowSize().y + padding) * inverseIndex));
+                                         basePosition.y + ((ImGui::GetWindowSize().y + padding) * stackIndex));
                 break;
             case 2: // Bottom Left
                 notificationPos = ImVec2(basePosition.x,
-                                         basePosition.y - ((ImGui::GetWindowSize().y + padding) * (inverseIndex + 1)));
+                                         basePosition.y - ((ImGui::GetWindowSize().y + padding) * (stackIndex + 1)));
                 break;
             case 3: // Bottom Right
                 notificationPos = ImVec2(basePosition.x - ImGui::GetWindowSize().x,
-                                         basePosition.y - ((ImGui::GetWindowSize().y + padding) * (inverseIndex + 1)));
+                                         basePosition.y - ((ImGui::GetWindowSize().y + padding) * (stackIndex + 1)));
                 break;
         }
 
@@ -131,8 +141,10 @@ void Emit(Options notification) {
         notification.remainingTime = CVarGetFloat(CVAR_SETTING("Notifications.Duration"), 10.0f);
     }
     notifications.push_back(notification);
-    Audio_PlaySoundGeneral(NA_SE_SY_METRONOME, &gSfxDefaultPos, 4, &gSfxDefaultFreqAndVolScale,
-                           &gSfxDefaultFreqAndVolScale, &gSfxDefaultReverb);
+    if (notification.playSound && !CVarGetInteger(CVAR_SETTING("Notifications.Mute"), 0)) {
+        Audio_PlaySoundGeneral(NA_SE_SY_METRONOME, &gSfxDefaultPos, 4, &gSfxDefaultFreqAndVolScale,
+                               &gSfxDefaultFreqAndVolScale, &gSfxDefaultReverb);
+    }
 }
 
 } // namespace Notification

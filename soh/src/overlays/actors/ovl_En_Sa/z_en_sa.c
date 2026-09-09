@@ -412,7 +412,7 @@ void func_80AF5F34(EnSa* this, PlayState* play) {
     Player* player = GET_PLAYER(play);
     s16 trackingMode = NPC_TRACKING_PLAYER_AUTO_TURN;
 
-    if (play->sceneNum == SCENE_KOKIRI_FOREST) {
+    if (GameInteractor_Should(VB_SARIA_GESTURE, play->sceneNum == SCENE_KOKIRI_FOREST, this)) {
         trackingMode = (this->actionFunc == func_80AF68E4) ? NPC_TRACKING_NONE : NPC_TRACKING_FULL_BODY;
     }
     if (play->sceneNum == SCENE_SACRED_FOREST_MEADOW) {

@@ -392,6 +392,19 @@ struct FloatSliderOptions : WidgetOptions {
     }
 };
 
+struct BtnSelectorOptions : WidgetOptions {
+    int32_t defaultValue = 0;
+    ComponentAlignments alignment = ComponentAlignments::Left;
+    LabelPositions labelPosition = LabelPositions::Above;
+    Colors color = Colors::Gray;
+
+    BtnSelectorOptions& DefaultValue(int32_t value) { defaultValue = value; return *this; }
+    BtnSelectorOptions& ComponentAlignment(ComponentAlignments value) { alignment = value; return *this; }
+    BtnSelectorOptions& LabelPosition(LabelPositions value) { labelPosition = value; return *this; }
+    BtnSelectorOptions& Tooltip(const char* value) { WidgetOptions::tooltip = value; return *this; }
+    BtnSelectorOptions& Color(Colors value) { color = value; return *this; }
+};
+
 struct RadioButtonsOptions : WidgetOptions {
     std::unordered_map<int32_t, const char*> buttonMap;
     Colors color = Colors::LightBlue;
@@ -895,6 +908,8 @@ bool SliderInt(const char* label, int32_t* value, const IntSliderOptions& option
 bool CVarSliderInt(const char* label, const char* cvarName, const IntSliderOptions& options = {});
 bool SliderFloat(const char* label, float* value, const FloatSliderOptions& options = {});
 bool CVarSliderFloat(const char* label, const char* cvarName, const FloatSliderOptions& options = {});
+bool BtnSelector(const char* label, int32_t* value, const BtnSelectorOptions& options = {});
+bool CVarBtnSelector(const char* label, const char* cvarName, const BtnSelectorOptions& options = {});
 bool InputString(const char* label, std::string* value, const InputOptions& options = {});
 bool CVarInputString(const char* label, const char* cvarName, const InputOptions& options = {});
 bool InputInt(const char* label, int32_t* value, const InputOptions& options = {});

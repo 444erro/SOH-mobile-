@@ -17,6 +17,9 @@ struct Options {
     std::string suffix = "";
     ImVec4 suffixColor = ImVec4(1.0f, 0.5f, 0.5f, 1.0f);
     float remainingTime = 0.0f; // Seconds
+    int position = -1;          // -1 uses the global notification position
+    float fontScale = 0.0f;     // 0 uses the global notification size
+    bool playSound = true;
 };
 
 class Window : public Ship::GuiWindow {

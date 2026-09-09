@@ -4377,6 +4377,13 @@ void func_800F4E30(Vec3f* pos, f32 arg1) {
         phi_s4 = ((sSariaBgmPtr->x / 100.0f) * 64.0f) + 64.0f;
     }
 
+#if defined(__ANDROID__)
+    // Some phones expose true stereo speakers while low-end devices collapse the
+    // same signal to mono. Center only Lost Woods' navigation mix so its original
+    // distance-volume curve sounds consistent across both hardware layouts.
+    phi_s4 = 64;
+#endif
+
     if (D_80130650 > 400.0f) {
         phi_f22 = 0.1f;
     } else if (D_80130650 < 120.0f) {

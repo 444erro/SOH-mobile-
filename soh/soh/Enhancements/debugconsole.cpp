@@ -37,11 +37,11 @@ extern PlayState* gPlayState;
 #define CMD_REGISTER Ship::Context::GetInstance()->GetConsole()->AddCommand
 // TODO: Commands should be using the output passed in.
 #define ERROR_MESSAGE                                                                 \
-    std::reinterpret_pointer_cast<Ship::ConsoleWindow>(                               \
+    std::static_pointer_cast<Ship::ConsoleWindow>(                               \
         Ship::Context::GetInstance()->GetWindow()->GetGui()->GetGuiWindow("Console")) \
         ->SendErrorMessage
 #define INFO_MESSAGE                                                                  \
-    std::reinterpret_pointer_cast<Ship::ConsoleWindow>(                               \
+    std::static_pointer_cast<Ship::ConsoleWindow>(                               \
         Ship::Context::GetInstance()->GetWindow()->GetGui()->GetGuiWindow("Console")) \
         ->SendInfoMessage
 

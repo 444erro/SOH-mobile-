@@ -5,12 +5,26 @@ namespace SohGui {
 extern std::shared_ptr<SohMenu> mSohMenu;
 using namespace UIWidgets;
 
+#if defined(__ANDROID__)
+static constexpr uint32_t DEV_TOOLS_COLUMNS = 1;
+static constexpr uint32_t DEV_VIEWER_COLUMNS = 1;
+#else
+static constexpr uint32_t DEV_TOOLS_COLUMNS = 3;
+static constexpr uint32_t DEV_VIEWER_COLUMNS = 2;
+#endif
+
+#ifdef _DEBUG
+static constexpr DebugLogOption DEFAULT_LOG_LEVEL = DEBUG_LOG_TRACE;
+#else
+static constexpr DebugLogOption DEFAULT_LOG_LEVEL = DEBUG_LOG_INFO;
+#endif
+
 void SohMenu::AddMenuDevTools() {
     // Add Dev Tools Menu
     AddMenuEntry("Dev Tools", CVAR_SETTING("Menu.DevToolsSidebarSection"));
 
     // General
-    AddSidebarEntry("Dev Tools", "General", 3);
+    AddSidebarEntry("Dev Tools", "General", DEV_TOOLS_COLUMNS);
     WidgetPath path = { "Dev Tools", "General", SECTION_COLUMN_1 };
 
     AddWidget(path, "Popout Menu", WIDGET_CVAR_CHECKBOX)
@@ -21,6 +35,14 @@ void SohMenu::AddMenuDevTools() {
         .Options(
             CheckboxOptions().Tooltip("Enables Debug Mode, allowing you to select maps with L + R + Z, noclip "
                                       "with L + D-pad Right, and open the debug menu with L on the pause screen."));
+    AddWidget(path, "Map Select Button Combination:", WIDGET_CVAR_BTN_SELECTOR)
+        .CVar("gDeveloperTools.MapSelectBtn")
+        .PreFunc([](WidgetInfo& info) { info.isHidden = !CVarGetInteger(CVAR_DEVELOPER_TOOLS("DebugEnabled"), 0); })
+        .Options(BtnSelectorOptions().DefaultValue(BTN_R | BTN_L | BTN_Z));
+    AddWidget(path, "No Clip Button Combination:", WIDGET_CVAR_BTN_SELECTOR)
+        .CVar("gDeveloperTools.NoClipBtn")
+        .PreFunc([](WidgetInfo& info) { info.isHidden = !CVarGetInteger(CVAR_DEVELOPER_TOOLS("DebugEnabled"), 0); })
+        .Options(BtnSelectorOptions().DefaultValue(BTN_L | BTN_DRIGHT));
     AddWidget(path, "OoT Registry Editor", WIDGET_CVAR_CHECKBOX)
         .CVar(CVAR_DEVELOPER_TOOLS("RegEditEnabled"))
         .PreFunc([](WidgetInfo& info) { info.isHidden = !CVarGetInteger(CVAR_DEVELOPER_TOOLS("DebugEnabled"), 0); })
@@ -87,6 +109,14 @@ void SohMenu::AddMenuDevTools() {
             }
         })
         .SameLine(true);
+    AddWidget(path, "Log Level", WIDGET_CVAR_COMBOBOX)
+        .CVar(CVAR_DEVELOPER_TOOLS("LogLevel"))
+        .Options(ComboboxOptions().ComboMap(logLevels).DefaultIndex(DEFAULT_LOG_LEVEL))
+        .Callback([](WidgetInfo&) {
+            Ship::Context::GetInstance()->GetLogger()->set_level(
+                static_cast<spdlog::level::level_enum>(
+                    CVarGetInteger(CVAR_DEVELOPER_TOOLS("LogLevel"), DEFAULT_LOG_LEVEL)));
+        });
 
     // Stats
     path.sidebarName = "Stats";
@@ -123,7 +153,7 @@ void SohMenu::AddMenuDevTools() {
 
     // Collision Viewer
     path.sidebarName = "Collision Viewer";
-    AddSidebarEntry("Dev Tools", path.sidebarName, 2);
+    AddSidebarEntry("Dev Tools", path.sidebarName, DEV_VIEWER_COLUMNS);
     AddWidget(path, "Popout Collision Viewer", WIDGET_WINDOW_BUTTON)
         .CVar(CVAR_WINDOW("CollisionViewer"))
         .WindowName("Collision Viewer")
@@ -131,7 +161,7 @@ void SohMenu::AddMenuDevTools() {
 
     // Actor Viewer
     path.sidebarName = "Actor Viewer";
-    AddSidebarEntry("Dev Tools", path.sidebarName, 2);
+    AddSidebarEntry("Dev Tools", path.sidebarName, DEV_VIEWER_COLUMNS);
     AddWidget(path, "Popout Actor Viewer", WIDGET_WINDOW_BUTTON)
         .CVar(CVAR_WINDOW("ActorViewer"))
         .WindowName("Actor Viewer")
@@ -139,7 +169,7 @@ void SohMenu::AddMenuDevTools() {
 
     // Display List Viewer
     path.sidebarName = "DList Viewer";
-    AddSidebarEntry("Dev Tools", path.sidebarName, 2);
+    AddSidebarEntry("Dev Tools", path.sidebarName, DEV_VIEWER_COLUMNS);
     AddWidget(path, "Popout Display List Viewer", WIDGET_WINDOW_BUTTON)
         .CVar(CVAR_WINDOW("DisplayListViewer"))
         .WindowName("Display List Viewer")
@@ -147,7 +177,7 @@ void SohMenu::AddMenuDevTools() {
 
     // Value Viewer
     path.sidebarName = "Value Viewer";
-    AddSidebarEntry("Dev Tools", path.sidebarName, 2);
+    AddSidebarEntry("Dev Tools", path.sidebarName, DEV_VIEWER_COLUMNS);
     AddWidget(path, "Popout Value Viewer", WIDGET_WINDOW_BUTTON)
         .CVar(CVAR_WINDOW("ValueViewer"))
         .WindowName("Value Viewer")
@@ -155,7 +185,7 @@ void SohMenu::AddMenuDevTools() {
 
     // Message Viewer
     path.sidebarName = "Message Viewer";
-    AddSidebarEntry("Dev Tools", path.sidebarName, 2);
+    AddSidebarEntry("Dev Tools", path.sidebarName, DEV_VIEWER_COLUMNS);
     AddWidget(path, "Popout Message Viewer", WIDGET_WINDOW_BUTTON)
         .CVar(CVAR_WINDOW("MessageViewer"))
         .WindowName("Message Viewer")

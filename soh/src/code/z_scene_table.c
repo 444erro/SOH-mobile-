@@ -26,6 +26,7 @@
 #include "soh/mq_asset_hacks.h"
 #include "soh/OTRGlobals.h"
 #include "soh/ResourceManagerHelpers.h"
+#include "soh/Enhancements/game-interactor/GameInteractor_Hooks.h"
 
 // Entrance Table definition
 #define DEFINE_ENTRANCE(_0, sceneId, spawn, continueBgm, displayTitleCard, endTransType, startTransType) \
@@ -1556,12 +1557,14 @@ void func_8009FE58(PlayState* play) {
 
     if (FrameAdvance_IsEnabled(play) != true) {
 
-        D_8012A39C += 1820;
-        D_8012A3A0 += 1820;
+        if (GameInteractor_Should(VB_JABU_WOBBLE, true)) {
+            D_8012A39C += 1820;
+            D_8012A3A0 += 1820;
+        }
 
         temp = 0.020000001f;
 
-        if (play->pauseCtx.state == 0) {
+        if (GameInteractor_Should(VB_JABU_WOBBLE, play->pauseCtx.state == 0)) {
             View_SetDistortionOrientation(&play->view,
                                           ((360.00018f / 65535.0f) * (M_PI / 180.0f)) * temp * Math_CosS(D_8012A39C),
                                           ((360.00018f / 65535.0f) * (M_PI / 180.0f)) * temp * Math_SinS(D_8012A39C),

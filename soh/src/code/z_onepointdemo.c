@@ -73,7 +73,12 @@ s32 OnePointCutscene_SetInfo(PlayState* play, s16 camIdx, s16 csId, Actor* actor
 
     // #region SOH [Enhancement]
     // the default is 90, lower values necessary to prevent camera swing as animation speeds up
-    s16 camCrawlTemp = CVarGetInteger(CVAR_ENHANCEMENT("CrawlSpeed"), 1);
+    Player* crawlPlayer = GET_PLAYER(play);
+    bool excludeFastCrawl = CVarGetInteger(CVAR_ENHANCEMENT("GlitchAidingCrawlspaces"), 0) &&
+                            play->sceneNum == SCENE_BOTTOM_OF_THE_WELL &&
+                            crawlPlayer->actor.world.pos.x > 950.0f && crawlPlayer->actor.world.pos.x < 1025.0f &&
+                            crawlPlayer->actor.world.pos.z > -1510.0f && crawlPlayer->actor.world.pos.z < -1490.0f;
+    s16 camCrawlTemp = excludeFastCrawl ? 1 : CVarGetInteger(CVAR_ENHANCEMENT("CrawlSpeed"), 1);
     s16 camCrawlTimer = D_8012042C / camCrawlTemp;
     // #endregion
 
@@ -896,7 +901,9 @@ s32 OnePointCutscene_SetInfo(PlayState* play, s16 camIdx, s16 csId, Actor* actor
             csInfo->keyFrameCnt = 1;
 
             func_800C0808(play, camIdx, player, CAM_SET_CS_C);
-            func_8002DF38(play, &player->actor, 1);
+            if (GameInteractor_Should(VB_LINK_SPIN_WITH_GORON_POT, true)) {
+                func_8002DF38(play, &player->actor, 1);
+            }
 
             i = Quake_Add(csCam, 3);
             Quake_SetSpeed(i, 12000);

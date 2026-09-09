@@ -5,7 +5,10 @@
 #include "window/gui/GuiMenuBar.h"
 #include "window/gui/GuiElement.h"
 #include "SohModals.h"
+#include "MenuLocalization.h"
 #include <variant>
+#include <algorithm>
+#include <deque>
 #include <spdlog/fmt/fmt.h>
 #include "variables.h"
 #include <tuple>
@@ -230,6 +233,18 @@ std::unordered_map<uint32_t, disabledInfo>& Menu::GetDisabledMap() {
 }
 
 void Menu::MenuDrawItem(WidgetInfo& widget, uint32_t width, UIWidgets::Colors menuThemeIndex) {
+    const std::string localizedName = SohGui::LocalizeMenuText(widget.name);
+    std::deque<std::string> localizedComboLabels;
+    std::unordered_map<int32_t, const char*> localizedComboMap;
+    auto localizeCombo = [&](const std::unordered_map<int32_t, const char*>& source) {
+        localizedComboLabels.clear();
+        localizedComboMap.clear();
+        localizedComboMap.reserve(source.size());
+        for (const auto& [value, label] : source) {
+            localizedComboLabels.push_back(SohGui::LocalizeMenuText(label != nullptr ? label : ""));
+            localizedComboMap.emplace(value, localizedComboLabels.back().c_str());
+        }
+    };
     disabledTempTooltip = "This setting is disabled because: \n";
     disabledValue = false;
     disabledTooltip = " ";
@@ -269,7 +284,7 @@ void Menu::MenuDrawItem(WidgetInfo& widget, uint32_t width, UIWidgets::Colors me
                 }
                 auto options = std::static_pointer_cast<UIWidgets::CheckboxOptions>(widget.options);
                 options->color = menuThemeIndex;
-                if (UIWidgets::Checkbox(UIWidgets::WrappedText(widget.name.c_str(), width).c_str(), pointer,
+                if (UIWidgets::Checkbox(UIWidgets::WrappedText(localizedName.c_str(), width).c_str(), pointer,
                                         *options)) {
                     if (widget.callback != nullptr) {
                         widget.callback(widget);
@@ -279,7 +294,7 @@ void Menu::MenuDrawItem(WidgetInfo& widget, uint32_t width, UIWidgets::Colors me
             case WIDGET_CVAR_CHECKBOX: {
                 auto options = std::static_pointer_cast<UIWidgets::CheckboxOptions>(widget.options);
                 options->color = menuThemeIndex;
-                if (UIWidgets::CVarCheckbox(UIWidgets::WrappedText(widget.name.c_str(), width).c_str(), widget.cVar,
+                if (UIWidgets::CVarCheckbox(UIWidgets::WrappedText(localizedName.c_str(), width).c_str(), widget.cVar,
                                             *options)) {
                     if (widget.callback != nullptr) {
                         widget.callback(widget);
@@ -321,7 +336,7 @@ void Menu::MenuDrawItem(WidgetInfo& widget, uint32_t width, UIWidgets::Colors me
                 if (options->color != UIWidgets::Colors::NoColor) {
                     ImGui::PushStyleColor(ImGuiCol_Text, UIWidgets::ColorValues.at(options->color));
                 }
-                ImGui::SeparatorText(widget.name.c_str());
+                ImGui::SeparatorText(localizedName.c_str());
                 if (options->color != UIWidgets::Colors::NoColor) {
                     ImGui::PopStyleColor();
                 }
@@ -332,7 +347,7 @@ void Menu::MenuDrawItem(WidgetInfo& widget, uint32_t width, UIWidgets::Colors me
                     ImGui::PushStyleColor(ImGuiCol_Text, UIWidgets::ColorValues.at(options->color));
                 }
                 ImGui::AlignTextToFramePadding();
-                ImGui::TextWrapped("%s", widget.name.c_str());
+                ImGui::TextWrapped("%s", localizedName.c_str());
                 if (options->color != UIWidgets::Colors::NoColor) {
                     ImGui::PopStyleColor();
                 }
@@ -346,7 +361,8 @@ void Menu::MenuDrawItem(WidgetInfo& widget, uint32_t width, UIWidgets::Colors me
                 }
                 auto options = std::static_pointer_cast<UIWidgets::ComboboxOptions>(widget.options);
                 options->color = menuThemeIndex;
-                if (UIWidgets::Combobox(widget.name.c_str(), pointer, options->comboMap, *options)) {
+                localizeCombo(options->comboMap);
+                if (UIWidgets::Combobox(localizedName.c_str(), pointer, localizedComboMap, *options)) {
                     if (widget.callback != nullptr) {
                         widget.callback(widget);
                     }
@@ -355,7 +371,8 @@ void Menu::MenuDrawItem(WidgetInfo& widget, uint32_t width, UIWidgets::Colors me
             case WIDGET_CVAR_COMBOBOX: {
                 auto options = std::static_pointer_cast<UIWidgets::ComboboxOptions>(widget.options);
                 options->color = menuThemeIndex;
-                if (UIWidgets::CVarCombobox(widget.name.c_str(), widget.cVar, options->comboMap, *options)) {
+                localizeCombo(options->comboMap);
+                if (UIWidgets::CVarCombobox(localizedName.c_str(), widget.cVar, localizedComboMap, *options)) {
                     if (widget.callback != nullptr) {
                         widget.callback(widget);
                     }
@@ -370,7 +387,7 @@ void Menu::MenuDrawItem(WidgetInfo& widget, uint32_t width, UIWidgets::Colors me
                 }
                 auto options = std::static_pointer_cast<UIWidgets::IntSliderOptions>(widget.options);
                 options->color = menuThemeIndex;
-                if (UIWidgets::SliderInt(widget.name.c_str(), pointer, *options)) {
+                if (UIWidgets::SliderInt(localizedName.c_str(), pointer, *options)) {
                     if (widget.callback != nullptr) {
                         widget.callback(widget);
                     }
@@ -379,7 +396,7 @@ void Menu::MenuDrawItem(WidgetInfo& widget, uint32_t width, UIWidgets::Colors me
             case WIDGET_CVAR_SLIDER_INT: {
                 auto options = std::static_pointer_cast<UIWidgets::IntSliderOptions>(widget.options);
                 options->color = menuThemeIndex;
-                if (UIWidgets::CVarSliderInt(widget.name.c_str(), widget.cVar, *options)) {
+                if (UIWidgets::CVarSliderInt(localizedName.c_str(), widget.cVar, *options)) {
                     if (widget.callback != nullptr) {
                         widget.callback(widget);
                     }
@@ -395,7 +412,7 @@ void Menu::MenuDrawItem(WidgetInfo& widget, uint32_t width, UIWidgets::Colors me
                 }
                 auto options = std::static_pointer_cast<UIWidgets::FloatSliderOptions>(widget.options);
                 options->color = menuThemeIndex;
-                if (UIWidgets::SliderFloat(widget.name.c_str(), pointer, *options)) {
+                if (UIWidgets::SliderFloat(localizedName.c_str(), pointer, *options)) {
                     if (widget.callback != nullptr) {
                         widget.callback(widget);
                     }
@@ -404,16 +421,24 @@ void Menu::MenuDrawItem(WidgetInfo& widget, uint32_t width, UIWidgets::Colors me
             case WIDGET_CVAR_SLIDER_FLOAT: {
                 auto options = std::static_pointer_cast<UIWidgets::FloatSliderOptions>(widget.options);
                 options->color = menuThemeIndex;
-                if (UIWidgets::CVarSliderFloat(widget.name.c_str(), widget.cVar, *options)) {
+                if (UIWidgets::CVarSliderFloat(localizedName.c_str(), widget.cVar, *options)) {
                     if (widget.callback != nullptr) {
                         widget.callback(widget);
                     }
                 }
             } break;
+            case WIDGET_CVAR_BTN_SELECTOR: {
+                auto options = std::static_pointer_cast<UIWidgets::BtnSelectorOptions>(widget.options);
+                options->color = menuThemeIndex;
+                if (UIWidgets::CVarBtnSelector(localizedName.c_str(), widget.cVar, *options) &&
+                    widget.callback != nullptr) {
+                    widget.callback(widget);
+                }
+            } break;
             case WIDGET_BUTTON: {
                 auto options = std::static_pointer_cast<UIWidgets::ButtonOptions>(widget.options);
                 options->color = menuThemeIndex;
-                if (UIWidgets::Button(widget.name.c_str(), *options)) {
+                if (UIWidgets::Button(localizedName.c_str(), *options)) {
                     if (widget.callback != nullptr) {
                         widget.callback(widget);
                     }
@@ -441,7 +466,7 @@ void Menu::MenuDrawItem(WidgetInfo& widget, uint32_t width, UIWidgets::Colors me
                 auto options = std::static_pointer_cast<UIWidgets::WindowButtonOptions>(widget.options);
                 options->color = menuThemeIndex;
                 if (options->showButton) {
-                    UIWidgets::WindowButton(widget.name.c_str(), widget.cVar, window, *options);
+                    UIWidgets::WindowButton(localizedName.c_str(), widget.cVar, window, *options);
                 }
                 if (!window->IsVisible() && options->embedWindow) {
                     window->DrawElement();
@@ -563,8 +588,14 @@ void Menu::DrawElement() {
     windowHeight = window->WorkRect.GetHeight();
     windowWidth = window->WorkRect.GetWidth();
 
+#if defined(__ANDROID__)
+    // Keep every main section reachable on phones without a horizontal scrollbar.
+    ImGui::PushFont(OTRGlobals::Instance->fontStandard);
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(5.0f, 6.0f));
+#else
     ImGui::PushFont(OTRGlobals::Instance->fontStandardLargest);
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(10.0f, 8.0f));
+#endif
     const char* headerCvar = CVAR_SETTING("Menu.ActiveHeader");
     std::string headerIndex = CVarGetString(headerCvar, "Settings");
     ImVec2 pos = window->DC.CursorPos;
@@ -572,11 +603,17 @@ void Menu::DrawElement() {
     std::vector<ImVec2> headerSizes;
     float headerWidth = style.ItemSpacing.x + 20;
     bool headerSearch = !CVarGetInteger(CVAR_SETTING("Menu.SidebarSearch"), 0);
+#if defined(__ANDROID__)
+    // The search box crowds the top navigation on phone screens. Search is
+    // still available from the Settings sidebar when explicitly enabled.
+    headerSearch = false;
+#endif
     if (headerSearch) {
         headerWidth += 200.0f + style.ItemSpacing.x + style.FramePadding.x;
     }
     for (auto& label : menuOrder) {
-        ImVec2 size = ImGui::CalcTextSize(label.c_str());
+        const std::string localizedLabel = SohGui::LocalizeMenuText(label);
+        ImVec2 size = ImGui::CalcTextSize(localizedLabel.c_str());
         headerSizes.push_back(size);
         headerWidth += size.x + style.FramePadding.x * 2;
         if (label == headerIndex) {
@@ -588,12 +625,19 @@ void Menu::DrawElement() {
     // 5% of screen width/height padding on both sides above those resolutions.
     // Menu width will never exceed a 16:9 aspect ratio.
     ImVec2 menuSize = { windowWidth, windowHeight };
+#if defined(__ANDROID__)
+    // Modern phones are wider than 16:9. Use that space instead of limiting
+    // the menu to the game's viewport aspect ratio.
+    menuSize.x = windowWidth * 0.97f;
+    menuSize.y = windowHeight * 0.96f;
+#else
     if (windowWidth > 1280) {
         menuSize.x = std::fminf(windowWidth * 0.9f, (windowHeight * 1.77f));
     }
     if (windowHeight > 800) {
         menuSize.y = windowHeight * 0.9f;
     }
+#endif
 
     pos += window->WorkRect.GetSize() / 2 - menuSize / 2;
     ImGui::SetNextWindowPos(pos);
@@ -605,31 +649,51 @@ void Menu::DrawElement() {
     float headerHeight = headerSizes.at(0).y + style.FramePadding.y * 2;
     ImVec2 buttonSize = ImGui::CalcTextSize(ICON_FA_TIMES_CIRCLE) + style.FramePadding * 2;
     bool scrollbar = false;
+#if !defined(__ANDROID__)
     if (headerWidth > menuSize.x - buttonSize.x * 3 - style.ItemSpacing.x * 3) {
         headerHeight += style.ScrollbarSize;
         scrollbar = true;
     }
+#endif
     ImGui::SetNextWindowSizeConstraints({ 0, headerHeight }, { headerWidth, headerHeight });
     ImVec2 headerSelSize = { menuSize.x - buttonSize.x * 3 - style.ItemSpacing.x * 3, headerHeight };
     if (scrollbar) {
         headerSelSize.y += style.ScrollbarSize;
     }
     bool autoFocus = CVarGetInteger(CVAR_SETTING("Menu.SearchAutofocus"), 0);
-    ImGui::BeginChild("Header Selection", headerSelSize,
-                      ImGuiChildFlags_AutoResizeX | ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_AlwaysAutoResize,
-                      ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_HorizontalScrollbar);
+    ImGui::BeginChild(
+        "Header Selection", headerSelSize,
+#if defined(__ANDROID__)
+        ImGuiChildFlags_None,
+#else
+        ImGuiChildFlags_AutoResizeX | ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_AlwaysAutoResize,
+#endif
+#if defined(__ANDROID__)
+        ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+#else
+        ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_HorizontalScrollbar);
+#endif
+#if defined(__ANDROID__)
+    // Seven top-level entries must fit beside the action buttons on narrow phones.
+    // Scale only this navigation strip; menu content and touch targets keep their configured size.
+    ImGui::SetWindowFontScale(0.82f);
+#endif
     uint8_t curIndex = 0;
     for (auto& label : menuOrder) {
         if (curIndex != 0) {
             ImGui::SameLine();
         }
         auto& entry = menuEntries.at(label);
+        const std::string localizedLabel = SohGui::LocalizeMenuText(entry.label);
         std::string nextIndex = label;
         UIWidgets::PushStyleButton(menuThemeIndex);
         if (headerIndex != label) {
             ImGui::PushStyleColor(ImGuiCol_Button, { 0, 0, 0, 0 });
         }
-        if (ModernMenuHeaderEntry(entry.label)) {
+        ImGui::PushID(entry.label.c_str());
+        const bool headerPressed = ModernMenuHeaderEntry(localizedLabel);
+        ImGui::PopID();
+        if (headerPressed) {
             if (headerSearch) {
                 menuSearch.Clear();
             }
@@ -668,6 +732,9 @@ void Menu::DrawElement() {
         }
         ImGui::PopStyleColor();
     }
+#if defined(__ANDROID__)
+    ImGui::SetWindowFontScale(1.0f);
+#endif
     ImGui::EndChild();
     ImGui::SameLine(menuSize.x - (buttonSize.x * 3) - (style.ItemSpacing.x * 2));
     UIWidgets::ButtonOptions options3 = {};
@@ -702,7 +769,7 @@ void Menu::DrawElement() {
 #endif
         ;
     if (UIWidgets::Button(ICON_FA_UNDO, options2)) {
-        std::reinterpret_pointer_cast<Ship::ConsoleWindow>(
+        std::static_pointer_cast<Ship::ConsoleWindow>(
             Ship::Context::GetInstance()->GetWindow()->GetGui()->GetGuiWindow("Console"))
             ->Dispatch("reset");
     }
@@ -734,9 +801,13 @@ void Menu::DrawElement() {
 
     // Increase sidebar width on larger screens to accomodate people scaling their menus.
     float sidebarWidth = 200 - style.ItemSpacing.x;
+#if defined(__ANDROID__)
+    sidebarWidth = std::clamp(menuSize.x * 0.18f, 150.0f, 220.0f);
+#else
     if (menuSize.x > 1600) {
         sidebarWidth = menuSize.x * 0.15f;
     }
+#endif
 
     const char* sidebarCvar = menuEntries.at(headerIndex).sidebarCvar;
 
@@ -750,12 +821,16 @@ void Menu::DrawElement() {
     ImGui::BeginChild((menuEntries.at(headerIndex).label + " Section").c_str(), { sidebarWidth, columnHeight * 3 },
                       ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_AlwaysAutoResize, ImGuiWindowFlags_NoTitleBar);
     for (auto& sidebarLabel : menuEntries.at(headerIndex).sidebarOrder) {
+        const std::string localizedSidebarLabel = SohGui::LocalizeMenuText(sidebarLabel);
         std::string nextIndex = "";
         UIWidgets::PushStyleButton(menuThemeIndex);
         if (sectionIndex != sidebarLabel) {
             ImGui::PushStyleColor(ImGuiCol_Button, { 0, 0, 0, 0 });
         }
-        if (ModernMenuSidebarEntry(sidebarLabel)) {
+        ImGui::PushID(sidebarLabel.c_str());
+        const bool sidebarPressed = ModernMenuSidebarEntry(localizedSidebarLabel);
+        ImGui::PopID();
+        if (sidebarPressed) {
             if (headerSearch) {
                 menuSearch.Clear();
             }
@@ -783,7 +858,7 @@ void Menu::DrawElement() {
     std::string sectionMenuId = sectionIndex + " Settings";
     int columns = sidebar->at(sectionIndex).columnCount;
     size_t columnFuncs = sidebar->at(sectionIndex).columnWidgets.size();
-    if (windowWidth < 800) {
+    if (windowWidth < 800 || sectionWidth < 900.0f) {
         columns = 1;
     }
     float columnWidth = (sectionWidth - style.ItemSpacing.x * columns) / columns;

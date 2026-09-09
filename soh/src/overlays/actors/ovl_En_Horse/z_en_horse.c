@@ -9,6 +9,7 @@
 #include "objects/object_horse/object_horse.h"
 #include "objects/object_hni/object_hni.h"
 #include "scenes/overworld/spot09/spot09_scene.h"
+#include "soh/frame_interpolation.h"
 #include <assert.h>
 
 #define FLAGS ACTOR_FLAG_UPDATE_CULLING_DISABLED
@@ -3850,6 +3851,16 @@ s32 EnHorse_OverrideLimbDraw(Actor* thisx, PlayState* play, s32 limbIndex, Skin*
 
 void EnHorse_Draw(Actor* thisx, PlayState* play) {
     EnHorse* this = (EnHorse*)thisx;
+#if defined(__ANDROID__)
+    // The title cutscene uses CPU-skinned limbs whose matrices are not stable when
+    // replayed by every Android graphics driver. Draw Epona from the authentic
+    // current game frame during the opening, while leaving camera/environment
+    // interpolation enabled.
+    int interpolationWasRecording = 0;
+    if (gSaveContext.gameMode == GAMEMODE_TITLE_SCREEN) {
+        interpolationWasRecording = FrameInterpolation_PauseRecord();
+    }
+#endif
 
     if (!(this->stateFlags & ENHORSE_INACTIVE)) {
         Gfx_SetupDL_25Opa(play->state.gfxCtx);
@@ -3863,4 +3874,9 @@ void EnHorse_Draw(Actor* thisx, PlayState* play) {
             this->postDrawFunc(this, play);
         }
     }
+#if defined(__ANDROID__)
+    if (gSaveContext.gameMode == GAMEMODE_TITLE_SCREEN) {
+        FrameInterpolation_ResumeRecord(interpolationWasRecording);
+    }
+#endif
 }

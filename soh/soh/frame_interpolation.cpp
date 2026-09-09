@@ -466,6 +466,16 @@ void FrameInterpolation_StopRecord(void) {
     is_recording = false;
 }
 
+int FrameInterpolation_PauseRecord(void) {
+    const bool wasRecording = is_recording;
+    is_recording = false;
+    return wasRecording ? 1 : 0;
+}
+
+void FrameInterpolation_ResumeRecord(int wasRecording) {
+    is_recording = wasRecording != 0;
+}
+
 void FrameInterpolation_RecordOpenChild(const void* a, int b) {
     if (!is_recording)
         return;
@@ -601,7 +611,16 @@ void FrameInterpolation_RecordMatrixRotateAxis(f32 angle, Vec3f* axis, u8 mode) 
 void FrameInterpolation_RecordSkinMatrixMtxFToMtx(MtxF* src, Mtx* dest) {
     if (!is_recording)
         return;
+#ifdef __ANDROID__
+    // Skin matrices are generated for every articulated limb and already represent
+    // the complete animation pose. On slower/32-bit GLES devices, matching them as
+    // generic matrices can associate a limb with the wrong previous-frame matrix.
+    // Keep the current original pose while allowing camera, actors and scenery to
+    // continue using the user-selected interpolation FPS.
+    append(Op::SkinMatrixMtxFToMtx).matrix_mtxf_to_mtx = { *src, dest };
+#else
     FrameInterpolation_RecordMatrixMtxFToMtx(src, dest);
+#endif
 }
 
 // https://stackoverflow.com/questions/1148309/inverting-a-4x4-matrix

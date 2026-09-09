@@ -1,9 +1,21 @@
 #include "SohMenu.h"
+#include "SohGui.hpp"
 #include "soh/Notification/Notification.h"
 #include <soh/GameVersions.h>
 #include "soh/ResourceManagerHelpers.h"
 #include "UIWidgets.hpp"
 #include <spdlog/fmt/fmt.h>
+#include <SDL2/SDL.h>
+#include <filesystem>
+#include <algorithm>
+#include <cctype>
+#include "utils/StringHelper.h"
+#include "soh/OTRGlobals.h"
+
+#if defined(__ANDROID__)
+#include <jni.h>
+#include <SDL2/SDL_system.h>
+#endif
 
 extern "C" {
 #include "include/z64audio.h"
@@ -13,13 +25,71 @@ extern "C" {
 namespace SohGui {
 
 extern std::shared_ptr<SohMenu> mSohMenu;
+extern std::shared_ptr<SohModalWindow> mModalWindow;
 using namespace UIWidgets;
 
+#if defined(__ANDROID__)
+static void OpenAndroidModFilePicker() {
+    JNIEnv* env = static_cast<JNIEnv*>(SDL_AndroidGetJNIEnv());
+    jobject activity = static_cast<jobject>(SDL_AndroidGetActivity());
+    if (env == nullptr || activity == nullptr) {
+        return;
+    }
+
+    jclass activityClass = env->GetObjectClass(activity);
+    jmethodID openPicker = env->GetMethodID(activityClass, "openModFilePicker", "()V");
+    if (openPicker != nullptr) {
+        env->CallVoidMethod(activity, openPicker);
+    }
+    env->DeleteLocalRef(activityClass);
+    env->DeleteLocalRef(activity);
+}
+
+static void SetAndroidHudEditMode(bool enabled) {
+    JNIEnv* env = static_cast<JNIEnv*>(SDL_AndroidGetJNIEnv());
+    jobject activity = static_cast<jobject>(SDL_AndroidGetActivity());
+    if (env == nullptr || activity == nullptr) {
+        return;
+    }
+
+    jclass activityClass = env->GetObjectClass(activity);
+    jmethodID method = env->GetMethodID(activityClass, "setHudEditMode", "(Z)V");
+    if (method != nullptr) {
+        env->CallVoidMethod(activity, method, enabled ? JNI_TRUE : JNI_FALSE);
+    }
+    env->DeleteLocalRef(activityClass);
+    env->DeleteLocalRef(activity);
+}
+
+static void ResetAndroidHudLayout() {
+    JNIEnv* env = static_cast<JNIEnv*>(SDL_AndroidGetJNIEnv());
+    jobject activity = static_cast<jobject>(SDL_AndroidGetActivity());
+    if (env == nullptr || activity == nullptr) {
+        return;
+    }
+
+    jclass activityClass = env->GetObjectClass(activity);
+    jmethodID method = env->GetMethodID(activityClass, "resetHudLayout", "()V");
+    if (method != nullptr) {
+        env->CallVoidMethod(activity, method);
+    }
+    env->DeleteLocalRef(activityClass);
+    env->DeleteLocalRef(activity);
+}
+#endif
+
 static std::unordered_map<int32_t, const char*> imguiScaleOptions = {
+#if defined(__ANDROID__)
+    { 0, "Compact" },
+    { 1, "Automatic" },
+    { 2, "Comfortable" },
+    { 3, "Large" },
+#else
     { 0, "Small" },
     { 1, "Normal" },
     { 2, "Large" },
     { 3, "X-Large" },
+#endif
 };
 
 const char* GetGameVersionString(uint32_t index) {
@@ -85,6 +155,104 @@ void SohMenu::UpdateLanguageMap(std::unordered_map<int32_t, const char*>& langua
     }
 }
 
+static std::vector<std::string> ScanModFiles() {
+    std::vector<std::string> files;
+    const std::string modsPath = Ship::Context::LocateFileAcrossAppDirs("mods", appShortName);
+    if (!modsPath.empty() && std::filesystem::is_directory(modsPath)) {
+        for (const auto& entry : std::filesystem::recursive_directory_iterator(modsPath)) {
+            if (!entry.is_regular_file()) continue;
+            const std::string ext = entry.path().extension().generic_string();
+            if (StringHelper::IEquals(ext, ".otr") || StringHelper::IEquals(ext, ".o2r") ||
+                StringHelper::IEquals(ext, ".mpq") || StringHelper::IEquals(ext, ".zip")) {
+                files.push_back(entry.path().filename().generic_string());
+            }
+        }
+    }
+    std::sort(files.begin(), files.end(), [](const std::string& a, const std::string& b) {
+        return std::lexicographical_compare(a.begin(), a.end(), b.begin(), b.end(),
+                                            [](char x, char y) { return std::tolower(x) < std::tolower(y); });
+    });
+    return files;
+}
+
+static void SaveEnabledMods(const std::vector<std::string>& enabled) {
+    std::string value;
+    for (const auto& file : enabled) {
+        if (!value.empty()) value += "|";
+        value += file;
+    }
+    CVarSetString(CVAR_SETTING("EnabledMods"), value.c_str());
+    CVarSetInteger(CVAR_SETTING("Mods.ListInitialized"), 1);
+    Ship::Context::GetInstance()->GetWindow()->GetGui()->SaveConsoleVariablesNextFrame();
+}
+
+static void DrawResponsiveModMenu(WidgetInfo&) {
+    static std::vector<std::string> available;
+    static std::vector<std::string> enabled;
+    static bool initialized = false;
+    if (!initialized) {
+        available = ScanModFiles();
+        if (CVarGetInteger(CVAR_SETTING("Mods.ListInitialized"), 0)) {
+            const char* value = CVarGetString(CVAR_SETTING("EnabledMods"), "");
+            enabled = StringHelper::Split(std::string(value != nullptr ? value : ""), "|");
+        } else {
+            enabled = available;
+            SaveEnabledMods(enabled);
+        }
+        initialized = true;
+    }
+
+    ImGui::SeparatorText("Mod Menu");
+    bool altAssets = CVarGetInteger(CVAR_SETTING("AltAssets"), 1);
+    if (ImGui::Checkbox("Enable Mods", &altAssets)) {
+        CVarSetInteger(CVAR_SETTING("AltAssets"), altAssets);
+        Ship::Context::GetInstance()->GetWindow()->GetGui()->SaveConsoleVariablesNextFrame();
+    }
+    ImGui::TextWrapped("Changes to individual mods and priority take effect after restarting the app.");
+    ImGui::TextDisabled("Higher entries have higher priority.");
+    if (Button("Refresh List", ButtonOptions().Size(Sizes::Inline).Color(THEME_COLOR))) {
+        available = ScanModFiles();
+    }
+    if (available.empty()) {
+        ImGui::TextDisabled("No compatible files found in SOH/mods");
+        return;
+    }
+
+    std::vector<std::string> displayFiles;
+    for (const auto& file : enabled) {
+        if (std::find(available.begin(), available.end(), file) != available.end()) displayFiles.push_back(file);
+    }
+    for (const auto& file : available) {
+        if (std::find(enabled.begin(), enabled.end(), file) == enabled.end()) displayFiles.push_back(file);
+    }
+    for (const auto& file : displayFiles) {
+        auto position = std::find(enabled.begin(), enabled.end(), file);
+        bool active = position != enabled.end();
+        ImGui::PushID(file.c_str());
+        if (ImGui::Checkbox("##Enabled", &active)) {
+            if (active) enabled.push_back(file);
+            else if (position != enabled.end()) enabled.erase(position);
+            SaveEnabledMods(enabled);
+            position = std::find(enabled.begin(), enabled.end(), file);
+        }
+        ImGui::SameLine();
+        ImGui::TextWrapped("%s", file.c_str());
+        if (active && position != enabled.end()) {
+            const size_t index = static_cast<size_t>(std::distance(enabled.begin(), position));
+            ImGui::Indent();
+            ImGui::BeginDisabled(index == 0);
+            if (ImGui::SmallButton("Up")) { std::swap(enabled[index], enabled[index - 1]); SaveEnabledMods(enabled); }
+            ImGui::EndDisabled();
+            ImGui::SameLine();
+            ImGui::BeginDisabled(index + 1 >= enabled.size());
+            if (ImGui::SmallButton("Down")) { std::swap(enabled[index], enabled[index + 1]); SaveEnabledMods(enabled); }
+            ImGui::EndDisabled();
+            ImGui::Unindent();
+        }
+        ImGui::PopID();
+    }
+}
+
 void SohMenu::AddMenuSettings() {
     // Add Settings Menu
     AddMenuEntry("Settings", CVAR_SETTING("Menu.SettingsSidebarSection"));
@@ -146,13 +314,29 @@ void SohMenu::AddMenuSettings() {
         .RaceDisable(false)
         .Options(
             CheckboxOptions().Tooltip("Allows pressing the Tab key to toggle alternate assets").DefaultValue(true));
-    AddWidget(path, "Open App Files Folder", WIDGET_BUTTON)
+    AddWidget(path,
+#if defined(__ANDROID__)
+              "Import Mod Files",
+#else
+              "Open App Files Folder",
+#endif
+              WIDGET_BUTTON)
         .RaceDisable(false)
         .Callback([](WidgetInfo& info) {
+#if defined(__ANDROID__)
+            OpenAndroidModFilePicker();
+#else
             std::string filesPath = Ship::Context::GetInstance()->GetAppDirectoryPath();
             SDL_OpenURL(std::string("file:///" + std::filesystem::absolute(filesPath).string()).c_str());
+#endif
         })
-        .Options(ButtonOptions().Tooltip("Opens the folder that contains the save and mods folders, etc."));
+        .Options(ButtonOptions().Tooltip(
+#if defined(__ANDROID__)
+            "Imports .otr, .o2r, .zip or .mpq mods into protected app storage. Restart after importing."
+#else
+            "Opens the folder that contains the save and mods folders, etc."
+#endif
+            ));
 
     AddWidget(path, "Boot", WIDGET_SEPARATOR_TEXT);
     AddWidget(path, "Boot Sequence", WIDGET_CVAR_COMBOBOX)
@@ -195,13 +379,26 @@ void SohMenu::AddMenuSettings() {
         .CVar(CVAR_SETTING("A11yDisableIdleCam"))
         .RaceDisable(false)
         .Options(CheckboxOptions().Tooltip("Disables the automatic re-centering of the camera when idle."));
+    AddWidget(path, "Disable Screen Flash for Finishing Blow", WIDGET_CVAR_CHECKBOX)
+        .CVar(CVAR_SETTING("A11yNoScreenFlashForFinishingBlow"))
+        .RaceDisable(false)
+        .Options(CheckboxOptions().Tooltip("Disables the white screen flash on enemy kill."));
+    AddWidget(path, "Disable Jabu Wobble", WIDGET_CVAR_CHECKBOX)
+        .CVar(CVAR_SETTING("A11yNoJabuWobble"))
+        .RaceDisable(false)
+        .Options(CheckboxOptions().Tooltip("Disables geometry wobble and camera distortion inside Jabu-Jabu."));
+    AddWidget(path, "Disable Heat Haze", WIDGET_CVAR_CHECKBOX)
+        .CVar(CVAR_SETTING("A11yNoHeatHaze"))
+        .RaceDisable(false)
+        .Options(CheckboxOptions().Tooltip("Disables heat distortion in Death Mountain and the Fire Temple."));
     AddWidget(path, "EXPERIMENTAL", WIDGET_SEPARATOR_TEXT).Options(TextOptions().Color(Colors::Orange));
     AddWidget(path, "ImGui Menu Scaling", WIDGET_CVAR_COMBOBOX)
         .CVar(CVAR_SETTING("ImGuiScale"))
         .RaceDisable(false)
         .Options(ComboboxOptions()
                      .ComboMap(imguiScaleOptions)
-                     .Tooltip("Changes the scaling of the ImGui menu elements.")
+                     .Tooltip("Changes the scaling of the ImGui menu elements. Android sizes are adjusted "
+                              "automatically for the screen resolution.")
                      .DefaultIndex(1)
                      .ComponentAlignment(ComponentAlignments::Right)
                      .LabelPosition(LabelPositions::Far))
@@ -305,7 +502,10 @@ void SohMenu::AddMenuSettings() {
         .CVar(CVAR_MSAA_VALUE)
         .RaceDisable(false)
         .Callback([](WidgetInfo& info) {
-            Ship::Context::GetInstance()->GetWindow()->SetMsaaLevel(CVarGetInteger(CVAR_MSAA_VALUE, 1));
+            const int32_t requested = CVarGetInteger(CVAR_MSAA_VALUE, 1);
+            const int32_t supportedLevel = requested >= 8 ? 8 : requested >= 4 ? 4 : requested >= 2 ? 2 : 1;
+            CVarSetInteger(CVAR_MSAA_VALUE, supportedLevel);
+            Ship::Context::GetInstance()->GetWindow()->SetMsaaLevel(supportedLevel);
         })
         .Options(
             IntSliderOptions()
@@ -373,6 +573,46 @@ void SohMenu::AddMenuSettings() {
     path.sidebarName = "Controls";
     path.column = SECTION_COLUMN_1;
     AddSidebarEntry("Settings", "Controls", 2);
+    AddWidget(path, "Allow Background Inputs", WIDGET_CVAR_CHECKBOX)
+        .CVar("gSettings.AllowBackgroundInputs")
+        .RaceDisable(false)
+        .Callback([](WidgetInfo& info) {
+            SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS,
+                        CVarGetInteger("gSettings.AllowBackgroundInputs", 1) ? "1" : "0");
+        })
+        .Options(CheckboxOptions()
+                     .DefaultValue(true)
+                     .Tooltip("Allows physical controller input while the app is not focused."));
+    AddWidget(path, "Reset Button Combination", WIDGET_CVAR_BTN_SELECTOR)
+        .CVar("gSettings.ResetBtn")
+        .RaceDisable(false)
+        .Options(BtnSelectorOptions()
+                     .DefaultValue(BTN_CUSTOM_MODIFIER2)
+                     .Tooltip("Select the button combination used to reset the game."));
+    AddWidget(path, "Reworked Targeting", WIDGET_CVAR_CHECKBOX)
+        .CVar(CVAR_ENHANCEMENT("ReworkedTargeting.Enabled"))
+        .Options(CheckboxOptions().Tooltip("Press Z to untarget and use a custom combination to switch targets."));
+    AddWidget(path, "Target Switch Button Combination", WIDGET_CVAR_BTN_SELECTOR)
+        .PreFunc([](WidgetInfo& info) {
+            info.isHidden = CVarGetInteger(CVAR_ENHANCEMENT("ReworkedTargeting.Enabled"), 0) == 0;
+        })
+        .CVar(CVAR_ENHANCEMENT("ReworkedTargeting.Btn"))
+        .Options(BtnSelectorOptions().Tooltip("Select the buttons used to switch lock-on targets."));
+    AddWidget(path, "Clear Devices", WIDGET_BUTTON)
+        .RaceDisable(false)
+        .Callback([](WidgetInfo& info) {
+            SohGui::mModalWindow->RegisterPopup(
+                "Clear Controller Devices",
+                "This clears physical controller mappings. Android touch controls are preserved.",
+                "Clear", "Cancel",
+                []() {
+                    CVarClearBlock(CVAR_PREFIX_SETTING ".Controllers");
+                    uint8_t bits = 0;
+                    Ship::Context::GetInstance()->GetControlDeck()->Init(&bits);
+                },
+                nullptr);
+        })
+        .Options(ButtonOptions().Size(Sizes::Inline).Tooltip("Clear saved physical controller devices and mappings."));
     AddWidget(path, "Controller Bindings", WIDGET_SEPARATOR_TEXT);
     AddWidget(path, "Popout Bindings Window", WIDGET_WINDOW_BUTTON)
         .CVar(CVAR_WINDOW("ControllerConfiguration"))
@@ -380,9 +620,29 @@ void SohMenu::AddMenuSettings() {
         .WindowName("Configure Controller")
         .Options(WindowButtonOptions().Tooltip("Enables the separate Bindings Window."));
 
+#if defined(__ANDROID__)
+    // HUD touch controls
+    path.sidebarName = "HUD";
+    path.column = SECTION_COLUMN_1;
+    AddSidebarEntry("Settings", path.sidebarName, 3);
+    AddWidget(path, "Edit Touch HUD", WIDGET_BUTTON)
+        .RaceDisable(false)
+        .Callback([](WidgetInfo& info) {
+            auto menu = Ship::Context::GetInstance()->GetWindow()->GetGui()->GetMenu();
+            if (menu != nullptr && menu->IsVisible()) {
+                menu->ToggleVisibility();
+            }
+            CVarSetInteger(CVAR_SETTING("Android.TouchHud.EditMode"), 1);
+            CVarSave();
+            SetAndroidHudEditMode(true);
+        })
+        .Options(ButtonOptions().Color(THEME_COLOR).Tooltip(
+            "Hides this menu and opens touch HUD edit mode. Use Reset or Aplicar at the top of the screen."));
+#endif
+
     // Input Viewer
     path.sidebarName = "Input Viewer";
-    AddSidebarEntry("Settings", path.sidebarName, 3);
+    AddSidebarEntry("Settings", path.sidebarName, 4);
     AddWidget(path, "Input Viewer", WIDGET_SEPARATOR_TEXT);
     AddWidget(path, "Toggle Input Viewer", WIDGET_WINDOW_BUTTON)
         .CVar(CVAR_WINDOW("InputViewer"))
@@ -446,6 +706,15 @@ void SohMenu::AddMenuSettings() {
             });
         })
         .Options(ButtonOptions().Tooltip("Displays a test notification."));
+    AddWidget(path, "Mute Notification Sound", WIDGET_CVAR_CHECKBOX)
+        .CVar(CVAR_SETTING("Notifications.Mute"))
+        .RaceDisable(false)
+        .Options(CheckboxOptions().Tooltip("Prevents notifications from playing a sound."));
+
+    path.sidebarName = "Mod Menu";
+    path.column = SECTION_COLUMN_1;
+    AddSidebarEntry("Settings", path.sidebarName, 1);
+    AddWidget(path, "Mod Menu", WIDGET_CUSTOM).CustomFunction(DrawResponsiveModMenu);
 }
 
 } // namespace SohGui

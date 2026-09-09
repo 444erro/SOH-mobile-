@@ -8,7 +8,7 @@ else {
 }
 
 android {
-    ndkVersion "26.0.10792818"
+    ndkVersion "25.2.9519653"
     namespace 'com.dishii.soh'
     compileSdkVersion 31
     buildFeatures {
@@ -21,7 +21,7 @@ android {
         minSdkVersion 24
         targetSdkVersion 33
         versionCode 8
-        versionName "9.0.2"
+        versionName "SOH-Mobile-Anchor"
     }
     buildTypes {
         debug {
@@ -37,11 +37,10 @@ android {
             minifyEnabled false
             debuggable false
             jniDebuggable false
-            signingConfig signingConfigs.debug
             externalNativeBuild {
                 cmake {
                     arguments "-DSDL_SHARED=ON", "-DANDROID_STL=c++_static", "-DHAVE_LD_VERSION_SCRIPT=OFF",'-DUSE_OPENGLES=ON'
-                    abiFilters 'arm64-v8a'
+                    abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86', 'x86_64'
                 }
             }
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
@@ -56,7 +55,7 @@ android {
             def versionName = variant.versionName
             def versionCode = variant.versionCode
 
-            def newApkName = "soh_${buildType}_v${versionName}.apk"
+            def newApkName = "${versionName}.apk"
             outputFileName = newApkName
         }
     }

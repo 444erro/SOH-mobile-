@@ -466,6 +466,9 @@ typedef enum {
     // - None
     VB_FIX_SAW_SOFTLOCK,
 
+    // Accessibility: allow suppressing the finishing-blow screen flash.
+    VB_FLASH_SCREEN_FOR_FINISHING_BLOW,
+
     // #### `result`
     // ```c
     // true
@@ -1105,6 +1108,29 @@ typedef enum {
     // #### `args`
     // - `*EnItem00`
     VB_ITEM00_DESPAWN,
+
+    // Accessibility: original Jabu-Jabu geometry/camera wobble.
+    VB_JABU_WOBBLE,
+
+    // Accessibility: original hot-room distortion.
+    VB_HOT_ROOM_DISTORTION,
+
+    // Item/equipment assignment from the pause menu.
+    VB_EQUIP_ITEM_TO_C_BUTTON,
+
+    // Use the newly selected held item after its change animation.
+    VB_USE_HELD_ITEM_AFTER_CHANGE,
+
+    // Magic-arrow handling used by Arrow Cycle.
+    VB_EN_ARROW_MAGIC_CONSUMPTION,
+    VB_PLAYER_ARROW_MAGIC_CONSUMPTION,
+
+    // Original Link rotation used by the spinning Goron Pot cutscene.
+    VB_LINK_SPIN_WITH_GORON_POT,
+
+    // Rendering controls for replacement 3D scene mods.
+    VB_DRAW_2D_BACKGROUND,
+    VB_LOAD_SKYBOX,
 
     // #### `result`
     // ```c
@@ -1986,6 +2012,28 @@ typedef enum {
     // #### `args`
     // - `*EnWonderTalk2`
     VB_WONDER_TALK,
+
+    // Controls whether Z begins target switching.
+    VB_TOGGLE_Z_TARGET_SWITCH_DIRECTION,
+
+    // Controls whether the current target is replaced.
+    VB_TOGGLE_Z_TARGET_SWITCH_TARGETS,
+
+    VB_SHADOW_SHIP_SET_SPEED,
+    VB_PLAYER_ROLL_CHAIN,
+    VB_PLAYER_ROLL_STEER,
+    VB_EMPTYING_BOTTLE,
+    VB_SPAWN_BEAN_SKULLTULA,
+    VB_KOKIRI_GET_FOREST_QUEST_STATE2,
+    VB_SARIA_GESTURE,
+    VB_BE_NEAR_DOOR_SHUTTER,
+    VB_DAMPE_DROP_FLAME,
+    VB_SWITCH_TIMER_TICK,
+    VB_PLAY_HORSEBACK_ARCHERY,
+    VB_SCORE_HORSEBACK_ARCHERY_TARGET,
+    VB_SET_HORSEBACK_ARCHERY_AMMO,
+    VB_AMY_SOLVE,
+    VB_SET_DIVING_GAME_TIME_LIMIT,
 } GIVanillaBehavior;
 
 #endif

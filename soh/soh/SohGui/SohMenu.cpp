@@ -45,6 +45,9 @@ WidgetInfo& SohMenu::AddWidget(WidgetPath& pathInfo, std::string widgetName, Wid
         case WIDGET_CVAR_SLIDER_FLOAT:
             widget.options = std::make_shared<FloatSliderOptions>();
             break;
+        case WIDGET_CVAR_BTN_SELECTOR:
+            widget.options = std::make_shared<BtnSelectorOptions>();
+            break;
         case WIDGET_SLIDER_INT:
         case WIDGET_CVAR_SLIDER_INT:
             widget.options = std::make_shared<IntSliderOptions>();
@@ -85,10 +88,12 @@ void SohMenu::InitElement() {
     AddMenuSettings();
     AddMenuEnhancements();
     AddMenuRandomizer();
-#ifdef ENABLE_REMOTE_CONTROL
+    AddMenuMultiplayer();
+#if defined(ENABLE_REMOTE_CONTROL) && !defined(__ANDROID__)
     AddMenuNetwork();
 #endif
     AddMenuDevTools();
+    AddMenuLanguage();
 
     if (CVarGetInteger(CVAR_SETTING("Menu.SidebarSearch"), 0)) {
         InsertSidebarSearch();
@@ -167,6 +172,20 @@ void SohMenu::Draw() {
 }
 
 void SohMenu::DrawElement() {
+#if defined(__ANDROID__)
+    // DisplaySize may only become available after the first rendered frame.
+    // Reapply the automatic scale when the menu first opens or the device
+    // resolution changes (for example after a display-mode transition).
+    static float lastDisplayWidth = -1.0f;
+    static float lastDisplayHeight = -1.0f;
+    const ImVec2 displaySize = ImGui::GetIO().DisplaySize;
+    if (displaySize.x > 0.0f && displaySize.y > 0.0f &&
+        (displaySize.x != lastDisplayWidth || displaySize.y != lastDisplayHeight)) {
+        OTRGlobals::Instance->ScaleImGui();
+        lastDisplayWidth = displaySize.x;
+        lastDisplayHeight = displaySize.y;
+    }
+#endif
     Ship::Menu::DrawElement();
 }
 } // namespace SohGui

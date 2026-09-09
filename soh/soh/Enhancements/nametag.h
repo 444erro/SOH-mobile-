@@ -6,6 +6,7 @@ typedef struct {
     const char* tag;       // Tag identifier to filter/remove multiple tags
     int16_t yOffset;       // Additional Y offset to apply for the name tag
     Color_RGBA8 textColor; // Text color override. Global color is used if alpha is 0
+    float scale;           // Per-tag scale. Values <= 0 use the global default
 } NameTagOptions;
 
 // Register required hooks for nametags on startup
@@ -21,6 +22,8 @@ void NameTag_RegisterForActorWithOptions(Actor* actor, const char* text, NameTag
 void NameTag_RegisterForActor(Actor* actor, const char* text);
 // Remove all name tags registered to a specific actor
 void NameTag_RemoveAllForActor(Actor* actor);
+// Returns non-zero when at least one name tag is currently registered for this actor.
+int NameTag_HasForActor(Actor* actor);
 // Remove all name tags that share the same tag identifier
 void NameTag_RemoveAllByTag(const char* tag);
 

@@ -54,6 +54,27 @@
 #include <random>
 #include <string>
 
+#ifdef __ANDROID__
+static void SetAndroidExtractionLoading(bool visible) {
+    JNIEnv* env = static_cast<JNIEnv*>(SDL_AndroidGetJNIEnv());
+    jobject activity = reinterpret_cast<jobject>(SDL_AndroidGetActivity());
+    if (env == nullptr || activity == nullptr) {
+        return;
+    }
+    jclass activityClass = env->GetObjectClass(activity);
+    jmethodID method = env->GetMethodID(activityClass,
+                                        visible ? "showExtractionLoading" : "hideExtractionLoading", "()V");
+    if (method != nullptr) {
+        env->CallVoidMethod(activity, method);
+    }
+    if (env->ExceptionCheck()) {
+        env->ExceptionClear();
+    }
+    env->DeleteLocalRef(activityClass);
+    env->DeleteLocalRef(activity);
+}
+#endif
+
 extern "C" uint32_t CRC32C(unsigned char* data, size_t dataSize);
 
 static constexpr uint32_t OOT_PAL_GC = 0x09465AC3;
@@ -138,6 +159,8 @@ extern "C" void JNICALL Java_com_dishii_soh_MainActivity_nativeHandleSelectedFil
 void Extractor::ShowErrorBox(const char* title, const char* text) {
 #ifdef _WIN32
     MessageBoxA(nullptr, text, title, MB_OK | MB_ICONERROR);
+#elif defined(__ANDROID__)
+    SetAndroidExtractionLoading(true);
 #else
     SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, title, text, nullptr);
 #endif
@@ -752,6 +775,10 @@ bool Extractor::CallZapd(std::string installPath, std::string exportdir) {
 #endif
 
     zapd_main(argc, (char**)argv.data());
+
+#ifdef __ANDROID__
+    SetAndroidExtractionLoading(false);
+#endif
 
 #ifdef _WIN32
     // Hide the command window again.

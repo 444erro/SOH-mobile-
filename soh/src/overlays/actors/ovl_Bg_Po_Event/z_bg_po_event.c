@@ -6,6 +6,7 @@
 
 #include "z_bg_po_event.h"
 #include "objects/object_po_sisters/object_po_sisters.h"
+#include "soh/Enhancements/game-interactor/GameInteractor_Hooks.h"
 
 #define FLAGS 0
 
@@ -333,7 +334,7 @@ void BgPoEvent_BlockIdle(BgPoEvent* this, PlayState* play) {
     Player* player = GET_PLAYER(play);
     Actor* amy;
 
-    if (sBgPoEventPuzzleState == 0xF) {
+    if (GameInteractor_Should(VB_AMY_SOLVE, sBgPoEventPuzzleState == 0xF)) {
         this->actionFunc = BgPoEvent_BlockSolved;
         if ((this->type == 0) && (this->index == 0)) {
             amy = Actor_Spawn(&play->actorCtx, play, ACTOR_EN_PO_SISTERS, this->dyna.actor.world.pos.x + 30.0f,

@@ -4,23 +4,25 @@
 #ifdef __cplusplus
 
 #include <thread>
-#include <SDL2/SDL_net.h>
 #include <nlohmann/json.hpp>
+#include <mutex>
 
 class Network {
   private:
-    IPaddress networkAddress;
-    TCPsocket networkSocket;
+    int networkSocket = -1;
     std::thread receiveThread;
     std::string receivedData;
+    std::mutex networkMutex;
+    std::string networkHost;
+    uint16_t networkPort = 0;
 
     void ReceiveFromServer();
     void HandleRemoteData(char payload[512]);
     void HandleRemoteJson(std::string payload);
 
   public:
-    bool isEnabled;
-    bool isConnected;
+    bool isEnabled = false;
+    bool isConnected = false;
 
     void Enable(const char* host, uint16_t port);
     void Disable();

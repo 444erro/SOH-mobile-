@@ -5,7 +5,9 @@
 #include <filesystem>
 #include <fstream>
 #include <chrono>
-
+#if defined(__ANDROID__)
+#include <SDL2/SDL_thread.h>
+#endif
 #include "ResourceManagerHelpers.h"
 #include "graphic/Fast3D/Fast3dWindow.h"
 #include <File.h>
@@ -294,7 +296,6 @@ OTRGlobals::OTRGlobals() {
         return std::lexicographical_compare(a.begin(), a.end(), b.begin(), b.end(),
                                             [](char c1, char c2) { return std::tolower(c1) < std::tolower(c2); });
     });
-    OTRFiles.insert(OTRFiles.end(), patchOTRs.begin(), patchOTRs.end());
     std::unordered_set<uint32_t> ValidHashes = {
         OOT_PAL_MQ,     OOT_NTSC_JP_MQ, OOT_NTSC_US_MQ, OOT_PAL_GC_MQ_DBG, OOT_NTSC_US_10,
         OOT_NTSC_US_11, OOT_NTSC_US_12, OOT_PAL_10,     OOT_PAL_11,        OOT_NTSC_JP_GC_CE,
@@ -307,10 +308,42 @@ OTRGlobals::OTRGlobals() {
     context->InitGfxDebugger();
     context->InitConfiguration();
     context->InitConsoleVariables();
+    auto consoleVariables = context->GetConsoleVariables();
+
+    // CVars only become available after InitConsoleVariables(). Reading the Mod
+    // Menu selection before this point crashes during startup on Android.
+    if (consoleVariables->GetInteger(CVAR_SETTING("Mods.ListInitialized"), 0)) {
+        const char* enabledValue = consoleVariables->GetString(CVAR_SETTING("EnabledMods"), "");
+        const std::vector<std::string> enabledNames =
+            StringHelper::Split(std::string(enabledValue != nullptr ? enabledValue : ""), "|");
+        std::vector<std::string> orderedPatches;
+        for (auto enabledIt = enabledNames.rbegin(); enabledIt != enabledNames.rend(); ++enabledIt) {
+            const auto& enabledName = *enabledIt;
+            auto match = std::find_if(patchOTRs.begin(), patchOTRs.end(), [&](const std::string& path) {
+                return std::filesystem::path(path).filename().generic_string() == enabledName;
+            });
+            if (match != patchOTRs.end()) {
+                orderedPatches.push_back(*match);
+            }
+        }
+        patchOTRs = std::move(orderedPatches);
+    }
+    OTRFiles.insert(OTRFiles.end(), patchOTRs.begin(), patchOTRs.end());
+
+#if defined(__ANDROID__)
+    // Default to aspect-aware horizontal actor culling on Android. This preserves
+    // the original forward draw distance and performance cost while preventing
+    // scenery/actors at the sides of wide phone screens from disappearing.
+    // Existing user choices remain untouched.
+    if (consoleVariables->GetInteger(CVAR_ENHANCEMENT("WidescreenActorCulling"), -1) < 0) {
+        consoleVariables->SetInteger(CVAR_ENHANCEMENT("WidescreenActorCulling"), 1);
+    }
+
+#endif
 
     // tell LUS to reserve 3 SoH specific threads (Game, Audio, Save)
     context->InitResourceManager(OTRFiles, {}, 3);
-    prevAltAssets = CVarGetInteger(CVAR_SETTING("AltAssets"), 0);
+    prevAltAssets = consoleVariables->GetInteger(CVAR_SETTING("AltAssets"), 0);
     context->GetResourceManager()->SetAltAssetsEnabled(prevAltAssets);
 
     auto controlDeck = std::make_shared<LUS::ControlDeck>(std::vector<CONTROLLERBUTTONS_T>({
@@ -341,6 +374,7 @@ OTRGlobals::OTRGlobals() {
     overlay->LoadFont("Fipps", 32.0f, "fonts/Fipps-Regular.otf");
     overlay->SetCurrentFont(CVarGetString(CVAR_GAME_OVERLAY_FONT, "Press Start 2P"));
 
+    // Keep the original Ship of Harkinian audio timing on every device.
     context->InitAudio({ .SampleRate = 44100, .SampleLength = 1024, .DesiredBuffered = 2480 });
 
     SPDLOG_INFO("Starting Ship of Harkinian version {} (Branch: {} | Commit: {})", (char*)gBuildVersion,
@@ -423,7 +457,12 @@ OTRGlobals::OTRGlobals() {
 
     hasMasterQuest = hasOriginal = false;
 
+#if defined(__ANDROID__)
+    // libultraship starts Android ImGui at 3x before SoH applies its own scale.
+    previousImGuiScale = 3.0f;
+#else
     previousImGuiScale = defaultImGuiScale;
+#endif
 
     fontMonoSmall = CreateFontWithSize(14.0f, "fonts/Inconsolata-Regular.ttf");
     fontMono = CreateFontWithSize(16.0f, "fonts/Inconsolata-Regular.ttf");
@@ -491,9 +530,25 @@ OTRGlobals::~OTRGlobals() {
 }
 
 void OTRGlobals::ScaleImGui() {
-    float scale = imguiScaleOptionToValue[CVarGetInteger(CVAR_SETTING("ImGuiScale"), defaultImGuiScale)];
+    const int32_t scaleOption =
+        std::clamp(CVarGetInteger(CVAR_SETTING("ImGuiScale"), defaultImGuiScale), 0, 3);
+#if defined(__ANDROID__)
+    const ImVec2 displaySize = ImGui::GetIO().DisplaySize;
+    const float shortSide = std::max(1.0f, std::min(displaySize.x, displaySize.y));
+    // 720p phones use a compact 1.32x UI. Higher-resolution screens grow
+    // proportionally so controls keep a similar physical touch size.
+    const float resolutionScale = std::clamp((shortSide / 720.0f) * 1.32f, 1.1f, 2.2f);
+    static constexpr float userScaleMultiplier[4] = { 0.82f, 1.0f, 1.16f, 1.32f };
+    const float scale = std::clamp(resolutionScale * userScaleMultiplier[scaleOption], 0.9f, 2.4f);
+#else
+    const float scale = imguiScaleOptionToValue[scaleOption];
+#endif
     float newScale = scale / previousImGuiScale;
     ImGui::GetStyle().ScaleAllSizes(newScale);
+#if defined(__ANDROID__)
+    // Keep touch scrollbars comfortably draggable without making the rest of the menu oversized.
+    ImGui::GetStyle().ScrollbarSize = std::clamp(20.0f * scale, 22.0f, 34.0f);
+#endif
     ImGui::GetIO().FontGlobalScale = scale;
     previousImGuiScale = scale;
 }
@@ -526,6 +581,25 @@ bool OTRGlobals::HasOriginal() {
 }
 
 uint32_t OTRGlobals::GetInterpolationFPS() {
+#if defined(__ANDROID__)
+    // The original title cutscene was authored and skinned at 20 FPS. Replaying its
+    // CPU-skinned Link/Epona matrices on interpolated frames produces detached limbs
+    // on several Android GPU drivers. Keep only the opening authentic; normal gameplay
+    // (including remote Anchor players) immediately returns to the selected FPS.
+    if (gSaveContext.gameMode == GAMEMODE_TITLE_SCREEN) {
+        return 20;
+    }
+
+    const uint32_t reportedRefreshRate =
+        Ship::Context::GetInstance()->GetWindow()->GetCurrentRefreshRate();
+    const uint32_t refreshRate = std::clamp<uint32_t>(reportedRefreshRate > 0 ? reportedRefreshRate : 60, 20, 360);
+    if (CVarGetInteger(CVAR_SETTING("MatchRefreshRate"), 0)) {
+        return refreshRate;
+    }
+    const uint32_t selectedFps = std::clamp<uint32_t>(
+        CVarGetInteger(CVAR_SETTING("InterpolationFPS"), 20), 20, 360);
+    return selectedFps;
+#else
     if (CVarGetInteger(CVAR_SETTING("MatchRefreshRate"), 0)) {
         return Ship::Context::GetInstance()->GetWindow()->GetCurrentRefreshRate();
     } else if (CVarGetInteger(CVAR_VSYNC_ENABLED, 1) ||
@@ -534,6 +608,7 @@ uint32_t OTRGlobals::GetInterpolationFPS() {
                                   CVarGetInteger(CVAR_SETTING("InterpolationFPS"), 20));
     }
     return CVarGetInteger(CVAR_SETTING("InterpolationFPS"), 20);
+#endif
 }
 
 extern "C" void OTRMessage_Init();
@@ -544,6 +619,9 @@ extern "C" int AudioPlayer_GetDesiredBuffered(void);
 std::unordered_map<std::string, ExtensionEntry> ExtensionCache;
 
 void OTRAudio_Thread() {
+#if defined(__ANDROID__)
+    SDL_SetThreadPriority(SDL_THREAD_PRIORITY_HIGH);
+#endif
     while (audio.running) {
         {
             std::unique_lock<std::mutex> Lock(audio.mutex);
@@ -1264,7 +1342,9 @@ extern "C" void InitOTR() {
 
     srand(now);
 #ifdef ENABLE_REMOTE_CONTROL
+#if !defined(__ANDROID__)
     SDLNet_Init();
+#endif
     if (CVarGetInteger(CVAR_REMOTE_CROWD_CONTROL("Enabled"), 0)) {
         CrowdControl::Instance->Enable();
     }
@@ -1288,7 +1368,9 @@ extern "C" void DeinitOTR() {
     if (CVarGetInteger(CVAR_REMOTE_SAIL("Enabled"), 0)) {
         Sail::Instance->Disable();
     }
+#if !defined(__ANDROID__)
     SDLNet_Quit();
+#endif
 #endif
 
     // Destroying gui here because we have shared ptrs to LUS objects which output to SPDLOG which is destroyed before
@@ -1479,6 +1561,34 @@ extern "C" void Graph_ProcessGfxCommands(Gfx* commands) {
     int fps = target_fps;
     int original_fps = 60 / R_UPDATE_RATE;
     auto wnd = std::dynamic_pointer_cast<Fast::Fast3dWindow>(Ship::Context::GetInstance()->GetWindow());
+
+#if defined(__ANDROID__)
+    // Preserve game speed and audio cadence when a phone cannot sustain all requested
+    // interpolation frames. Only disposable visual frames are reduced.
+    static int adaptiveFps = 20;
+    static int previousTargetFps = 20;
+    static int stableFrames = 0;
+    if (target_fps != previousTargetFps) {
+        adaptiveFps = target_fps;
+        previousTargetFps = target_fps;
+        stableFrames = 0;
+    }
+
+    const float measuredFps = ImGui::GetIO().Framerate;
+    if (measuredFps > 1.0f && measuredFps < adaptiveFps * 0.82f) {
+        adaptiveFps = std::max(original_fps, adaptiveFps - 20);
+        stableFrames = 0;
+    } else if (adaptiveFps < target_fps && measuredFps >= adaptiveFps * 0.95f) {
+        if (++stableFrames >= 120) {
+            adaptiveFps = std::min(target_fps, adaptiveFps + 20);
+            stableFrames = 0;
+        }
+    } else {
+        stableFrames = 0;
+    }
+
+    fps = std::min(target_fps, adaptiveFps);
+#endif
 
     if (target_fps == 20 || original_fps > target_fps) {
         fps = original_fps;

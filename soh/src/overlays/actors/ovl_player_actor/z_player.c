@@ -3,9 +3,9 @@
  * Overlay: ovl_player_actor
  * Description: Link
  */
-
 #include <libultraship/libultra.h>
 #include "global.h"
+#include "multiplayer/MultiplayerBridge.h"
 
 #include "overlays/actors/ovl_Bg_Heavy_Block/z_bg_heavy_block.h"
 #include "overlays/actors/ovl_Door_Shutter/z_door_shutter.h"
@@ -1896,6 +1896,10 @@ void Player_AnimChangeLoopSlowMorph(PlayState* play, Player* this, LinkAnimation
 s32 func_80832CB0(PlayState* play, Player* this, LinkAnimationHeader* anim) {
     if (LinkAnimation_Update(play, &this->skelAnime)) {
         Player_AnimPlayLoop(play, this, anim);
+        if (Player_HoldsHookshot(this)) {
+            Multiplayer_NotifyVisualEffect((uint8_t)this->heldItemAction);
+        }
+
         return 1;
     } else {
         return 0;
@@ -2296,6 +2300,7 @@ void Player_InitExplosiveIA(PlayState* play, Player* this) {
         Actor_SpawnAsChild(&play->actorCtx, &this->actor, play, explosiveInfo->actorId, this->actor.world.pos.x,
                            this->actor.world.pos.y, this->actor.world.pos.z, 0, this->actor.shape.rot.y, 0, 0);
     if (spawnedActor != NULL) {
+        Multiplayer_NotifyVisualEffect((uint8_t)this->heldItemAction);
         if ((explosiveType != 0) && (play->bombchuBowlingStatus != 0)) {
             if (!CVarGetInteger(CVAR_CHEAT("InfiniteAmmo"), 0)) {
                 play->bombchuBowlingStatus--;
@@ -2347,6 +2352,10 @@ void Player_InitItemAction(PlayState* play, Player* this, s8 itemAction) {
 void func_80833A20(Player* this, s32 newMeleeWeaponState) {
     u16 itemSfx;
     u16 voiceSfx;
+
+    if (newMeleeWeaponState > 0) {
+        Multiplayer_NotifyVisualEffect((uint8_t)this->heldItemAction);
+    }
 
     if (this->meleeWeaponState == 0) {
         if ((this->heldItemAction == PLAYER_IA_SWORD_BIGGORON) && (gSaveContext.swordHealth > 0.0f)) {
@@ -2692,14 +2701,20 @@ s32 func_8083442C(Player* this, PlayState* play) {
                 magicArrowType = arrowType - ARROW_FIRE;
 
                 if (this->unk_860 >= 0) {
-                    if ((magicArrowType >= 0) && (magicArrowType <= 2) &&
-                        !Magic_RequestChange(play, sMagicArrowCosts[magicArrowType], MAGIC_CONSUME_NOW)) {
-                        arrowType = ARROW_NORMAL;
+                    if ((magicArrowType >= 0) && (magicArrowType <= 2)) {
+                        if (GameInteractor_Should(VB_PLAYER_ARROW_MAGIC_CONSUMPTION, true, this, magicArrowType,
+                                                  &arrowType) &&
+                            !Magic_RequestChange(play, sMagicArrowCosts[magicArrowType], MAGIC_CONSUME_NOW)) {
+                            arrowType = ARROW_NORMAL;
+                        }
                     }
 
                     this->heldActor = Actor_SpawnAsChild(
                         &play->actorCtx, &this->actor, play, ACTOR_EN_ARROW, this->actor.world.pos.x,
                         this->actor.world.pos.y, this->actor.world.pos.z, 0, this->actor.shape.rot.y, 0, arrowType);
+                    if (this->heldActor != NULL) {
+                        Multiplayer_NotifyVisualEffect((uint8_t)this->heldItemAction);
+                    }
                 }
             }
         }
@@ -2831,8 +2846,10 @@ s32 Player_UpperAction_Sword(Player* this, PlayState* play) {
 s32 Player_UpperAction_ChangeHeldItem(Player* this, PlayState* play) {
     if (LinkAnimation_Update(play, &this->upperSkelAnime) ||
         ((Player_ItemToItemAction(this->heldItemId) == this->heldItemAction) &&
-         (sUseHeldItem =
-              (sUseHeldItem || ((this->modelAnimType != PLAYER_ANIMTYPE_3) && (play->shootingGalleryStatus == 0)))))) {
+         (sUseHeldItem = (sUseHeldItem || GameInteractor_Should(VB_USE_HELD_ITEM_AFTER_CHANGE,
+                                                                ((this->modelAnimType != PLAYER_ANIMTYPE_3) &&
+                                                                 (play->shootingGalleryStatus == 0)),
+                                                                this))))) {
         Player_SetUpperActionFunc(this, sItemActionUpdateFuncs[this->heldItemAction]);
         this->unk_834 = 0;
         this->idleType = PLAYER_IDLE_DEFAULT;
@@ -3266,6 +3283,7 @@ s32 func_808359FC(Player* this, PlayState* play) {
         this->boomerangActor = &boomerang->actor;
 
         if (boomerang != NULL) {
+            Multiplayer_NotifyVisualEffect((uint8_t)PLAYER_IA_BOOMERANG);
             boomerang->moveTo = this->focusActor;
             boomerang->returnTimer = 20;
             this->stateFlags1 |= PLAYER_STATE1_BOOMERANG_THROWN;
@@ -3825,7 +3843,8 @@ void Player_UpdateZTargeting(Player* this, PlayState* play) {
         if (!isTalking) {
             if (!(this->stateFlags1 & PLAYER_STATE1_BOOMERANG_THROWN) &&
                 ((this->heldItemAction != PLAYER_IA_FISHING_POLE) || (this->unk_860 == 0)) &&
-                CHECK_BTN_ALL(sControlInput->press.button, BTN_Z)) {
+                GameInteractor_Should(VB_TOGGLE_Z_TARGET_SWITCH_DIRECTION,
+                                      CHECK_BTN_ALL(sControlInput->press.button, BTN_Z))) {
 
                 if (this->actor.category == ACTORCAT_PLAYER) {
                     // The next lock-on actor defaults to the actor Navi is hovering over.
@@ -3851,7 +3870,8 @@ void Player_UpdateZTargeting(Player* this, PlayState* play) {
                         nextLockOnActor = play->actorCtx.targetCtx.unk_94;
                     }
 
-                    if (nextLockOnActor != this->focusActor) {
+                    if (GameInteractor_Should(VB_TOGGLE_Z_TARGET_SWITCH_TARGETS,
+                                              nextLockOnActor != this->focusActor)) {
                         // Set new lock-on
 
                         if (!usingHoldTargeting) {
@@ -7141,7 +7161,8 @@ void func_8083DFE0(Player* this, f32* arg1, s16* arg2) {
                     maxSpeed *= CVarGetFloat(CVAR_SETTING("WalkModifier.Mapping2"), 1.0f);
                 }
             } else {
-                if (CHECK_BTN_ALL(sControlInput->cur.button, BTN_CUSTOM_MODIFIER1)) {
+                if (CHECK_BTN_ALL(sControlInput->cur.button,
+                                  CVarGetInteger(CVAR_SETTING("WalkModifier.Mod1Btn"), BTN_CUSTOM_MODIFIER1))) {
                     maxSpeed *= CVarGetFloat(CVAR_SETTING("WalkModifier.Mapping1"), 1.0f);
                 } else if (CHECK_BTN_ALL(sControlInput->cur.button, BTN_CUSTOM_MODIFIER2)) {
                     maxSpeed *= CVarGetFloat(CVAR_SETTING("WalkModifier.Mapping2"), 1.0f);
@@ -7619,6 +7640,14 @@ void func_8083F070(Player* this, LinkAnimationHeader* anim, PlayState* play) {
 /**
  * @return true if Player chooses to enter crawlspace
  */
+static bool Player_ShouldUseFastCrawl(Player* this, PlayState* play) {
+    const bool excluded = CVarGetInteger(CVAR_ENHANCEMENT("GlitchAidingCrawlspaces"), 0) &&
+                          play->sceneNum == SCENE_BOTTOM_OF_THE_WELL &&
+                          this->actor.world.pos.x > 950.0f && this->actor.world.pos.x < 1025.0f &&
+                          this->actor.world.pos.z > -1510.0f && this->actor.world.pos.z < -1490.0f;
+    return CVarGetInteger(CVAR_ENHANCEMENT("CrawlSpeed"), 1) > 1 && !excluded;
+}
+
 s32 Player_TryEnteringCrawlspace(Player* this, PlayState* play, u32 interactWallFlags) {
     CollisionPoly* wallPoly;
     Vec3f wallVertices[3];
@@ -7680,7 +7709,7 @@ s32 Player_TryEnteringCrawlspace(Player* this, PlayState* play, u32 interactWall
                 func_80832224(this);
                 this->actor.prevPos = this->actor.world.pos;
                 // #region SOH [Enhancement]
-                if (CVarGetInteger(CVAR_ENHANCEMENT("CrawlSpeed"), 1) > 1) {
+                if (Player_ShouldUseFastCrawl(this, play)) {
                     // increase animation speed when entering a tunnel
                     LinkAnimation_Change(play, &this->skelAnime, &gPlayerAnim_link_child_tunnel_start,
                                          ((CVarGetInteger(CVAR_ENHANCEMENT("CrawlSpeed"), 1) + 1.0f) / 2.0f), 0.0f,
@@ -7777,7 +7806,7 @@ s32 Player_TryLeavingCrawlspace(Player* this, PlayState* play) {
                 // Leaving a crawlspace forwards
                 this->actor.shape.rot.y = this->actor.wallYaw + 0x8000;
                 // #region SOH [Enhancement]
-                if (CVarGetInteger(CVAR_ENHANCEMENT("CrawlSpeed"), 1) > 1) {
+                if (Player_ShouldUseFastCrawl(this, play)) {
                     LinkAnimation_Change(play, &this->skelAnime, &gPlayerAnim_link_child_tunnel_end,
                                          ((CVarGetInteger(CVAR_ENHANCEMENT("CrawlSpeed"), 1) + 1.0f) / 2.0f), 0.0f,
                                          Animation_GetLastFrame(&gPlayerAnim_link_child_tunnel_end), ANIMMODE_ONCE,
@@ -7794,7 +7823,7 @@ s32 Player_TryLeavingCrawlspace(Player* this, PlayState* play) {
                 // Leaving a crawlspace backwards
                 this->actor.shape.rot.y = this->actor.wallYaw;
                 // #region SOH [Enhancement]
-                if (CVarGetInteger(CVAR_ENHANCEMENT("CrawlSpeed"), 1) > 1) {
+                if (Player_ShouldUseFastCrawl(this, play)) {
                     LinkAnimation_Change(play, &this->skelAnime, &gPlayerAnim_link_child_tunnel_start,
                                          -1.0f * ((CVarGetInteger(CVAR_ENHANCEMENT("CrawlSpeed"), 1) + 1.0f) / 2.0f),
                                          Animation_GetLastFrame(&gPlayerAnim_link_child_tunnel_start), 0.0f,
@@ -8918,7 +8947,8 @@ void Player_Action_80842180(Player* this, PlayState* play) {
                         sp2C *= CVarGetFloat(CVAR_SETTING("WalkModifier.Mapping2"), 1.0f);
                     }
                 } else {
-                    if (CHECK_BTN_ALL(sControlInput->cur.button, BTN_CUSTOM_MODIFIER1)) {
+                    if (CHECK_BTN_ALL(sControlInput->cur.button,
+                                      CVarGetInteger(CVAR_SETTING("WalkModifier.Mod1Btn"), BTN_CUSTOM_MODIFIER1))) {
                         sp2C *= CVarGetFloat(CVAR_SETTING("WalkModifier.Mapping1"), 1.0f);
                     } else if (CHECK_BTN_ALL(sControlInput->cur.button, BTN_CUSTOM_MODIFIER2)) {
                         sp2C *= CVarGetFloat(CVAR_SETTING("WalkModifier.Mapping2"), 1.0f);
@@ -9874,6 +9904,10 @@ void Player_Action_Roll(Player* this, PlayState* play) {
                 }
             }
 
+            if (GameInteractor_Should(VB_PLAYER_ROLL_CHAIN, false, this, play, sControlInput, sFloorType)) {
+                return;
+            }
+
             if ((this->skelAnime.curFrame < 15.0f) || !Player_ActionHandler_7(this, play)) {
                 if (this->skelAnime.curFrame >= 20.0f) {
                     func_8083A060(this, play);
@@ -9892,6 +9926,7 @@ void Player_Action_Roll(Player* this, PlayState* play) {
                     speedTarget = 3.0f;
                 }
 
+                GameInteractor_Should(VB_PLAYER_ROLL_STEER, false, this, play, yawTarget);
                 func_8083DF68(this, speedTarget, this->actor.shape.rot.y);
 
                 if (func_8084269C(play, this)) {
@@ -10752,9 +10787,12 @@ void Player_StartMode_WarpSong(PlayState* play, Player* this) {
 
 Actor* Player_SpawnMagicSpell(PlayState* play, Player* this, s32 spell) {
     static s16 sMagicSpellActorIds[] = { ACTOR_MAGIC_WIND, ACTOR_MAGIC_DARK, ACTOR_MAGIC_FIRE };
-
-    return Actor_Spawn(&play->actorCtx, play, sMagicSpellActorIds[spell], this->actor.world.pos.x,
-                       this->actor.world.pos.y, this->actor.world.pos.z, 0, 0, 0, 0, true);
+    Actor* spellActor = Actor_Spawn(&play->actorCtx, play, sMagicSpellActorIds[spell], this->actor.world.pos.x,
+                                    this->actor.world.pos.y, this->actor.world.pos.z, 0, 0, 0, 0, true);
+    if (spellActor != NULL) {
+        Multiplayer_NotifyVisualEffect((uint8_t)(PLAYER_IA_MAGIC_SPELL_15 + spell));
+    }
+    return spellActor;
 }
 
 void Player_StartMode_FaroresWind(PlayState* play, Player* this) {
@@ -12425,7 +12463,8 @@ void Player_Update(Actor* thisx, PlayState* play) {
 
         if (CVarGetInteger(CVAR_SETTING("WalkModifier.Enabled"), 0) &&
             CVarGetInteger(CVAR_SETTING("WalkModifier.SpeedToggle"), 0)) {
-            if (CHECK_BTN_ALL(sControlInput->press.button, BTN_CUSTOM_MODIFIER1)) {
+            if (CHECK_BTN_ALL(sControlInput->press.button,
+                              CVarGetInteger(CVAR_SETTING("WalkModifier.Mod1Btn"), BTN_CUSTOM_MODIFIER1))) {
                 gWalkSpeedToggle1 = !gWalkSpeedToggle1;
             }
             if (CHECK_BTN_ALL(sControlInput->press.button, BTN_CUSTOM_MODIFIER2)) {
@@ -12434,6 +12473,15 @@ void Player_Update(Actor* thisx, PlayState* play) {
         }
 
         Player_UpdateCommon(this, play, &sp44);
+
+        if ((gSaveContext.gameMode == GAMEMODE_NORMAL) && (gSaveContext.fileNum >= 0) &&
+            (gSaveContext.fileNum <= 2) && (gSaveContext.cutsceneIndex < 0xFFF0) &&
+            (play->csCtx.state == CS_STATE_IDLE) && (this->csAction == 0) &&
+            !(this->stateFlags1 & (PLAYER_STATE1_ON_HORSE | PLAYER_STATE1_IN_CUTSCENE))) {
+            Multiplayer_Init();
+            Multiplayer_UpdateLocalPlayer(this, play);
+        }
+
     }
 
     MREG(52) = this->actor.world.pos.x;
@@ -12611,9 +12659,176 @@ void Player_DrawGameplay(PlayState* play, Player* this, s32 lod, Gfx* cullDList,
     CLOSE_DISPS(play->state.gfxCtx);
 }
 
+void Multiplayer_DrawRemotePlayerModel(Player* player, PlayState* play, float x, float y, float z, int16_t rotY,
+                                       const Vec3s* jointTable, uint16_t limbCount, uint8_t tunic, uint8_t boots,
+                                       uint8_t face, uint8_t shield, uint8_t modelGroup, uint8_t visualFlags,
+                                       uint8_t buttonItem0, int8_t itemAction, int8_t heldItemAction,
+                                       uint32_t stateFlags1, uint32_t stateFlags2, int8_t invincibilityTimer,
+                                       float itemDrawDepth, int16_t getItemDrawId, int8_t actionVar1,
+                                       uint8_t movementFlags, const Vec3s* prevTransl, const Vec3s* upperLimbRot,
+                                       uint8_t playerAge, uint8_t colorR, uint8_t colorG, uint8_t colorB) {
+    Vec3s rotation = { 0, rotY, 0 };
+    Vec3s remoteJointTable[PLAYER_LIMB_BUF_COUNT];
+    Vec3f drawPosition = { x, y, z };
+    Vec3f animationTranslation;
+    Player remotePlayer;
+    FlexSkeletonHeader* remoteSkeleton;
+    void** remoteSkeletonLimbs;
+    uint8_t localPlayerAge;
+    uint8_t remotePlayerAge;
+    uint16_t copyCount;
+
+    if (player == NULL || play == NULL) {
+        return;
+    }
+
+    localPlayerAge = gSaveContext.linkAge;
+    remotePlayerAge = playerAge <= LINK_AGE_CHILD ? playerAge : localPlayerAge;
+    remoteSkeleton = gPlayerSkelHeaders[remotePlayerAge];
+
+    // The entries in gPlayerSkelHeaders are OTR resource names until they are resolved. Passing an unresolved
+    // entry to Player_DrawImpl makes SkelAnime_DrawFlexLod interpret the "__OTR__..." string as a limb table,
+    // which crashes as soon as a remote player of the other age becomes visible.
+    if (ResourceMgr_OTRSigCheck(remoteSkeleton) != 0) {
+        remoteSkeleton = (FlexSkeletonHeader*)ResourceMgr_LoadSkeletonByName((const char*)remoteSkeleton, NULL);
+    }
+    if (remoteSkeleton == NULL) {
+        return;
+    }
+    remoteSkeleton = SEGMENTED_TO_VIRTUAL(remoteSkeleton);
+    remoteSkeletonLimbs = SEGMENTED_TO_VIRTUAL(remoteSkeleton->sh.segment);
+    gSaveContext.linkAge = remotePlayerAge;
+
+    memset(remoteJointTable, 0, sizeof(remoteJointTable));
+    copyCount = MIN(limbCount, PLAYER_LIMB_MAX);
+    if (jointTable != NULL && copyCount > 0) {
+        memcpy(remoteJointTable, jointTable, copyCount * sizeof(Vec3s));
+    }
+
+    remotePlayer = *player;
+    remotePlayer.actor.world.pos.x = x;
+    remotePlayer.actor.world.pos.y = y;
+    remotePlayer.actor.world.pos.z = z;
+    remotePlayer.actor.shape.rot = rotation;
+    remotePlayer.actor.shape.face = face;
+    remotePlayer.actor.speedXZ = 0.0f;
+    remotePlayer.ageProperties = &sAgeProperties[remotePlayerAge];
+    // The Android renderer uses a lightweight temporary Player, not the persistent
+    // DummyPlayer actor from PC. Applying every gameplay flag can suppress drawing
+    // or reference local-only actors, so rebuild only the visual-safe flags below.
+    remotePlayer.stateFlags1 = 0;
+    remotePlayer.stateFlags2 = 0;
+    remotePlayer.stateFlags3 = 0;
+    remotePlayer.csAction = 0;
+    remotePlayer.unk_6AD = 0;
+    remotePlayer.itemAction = itemAction;
+    remotePlayer.heldItemAction = heldItemAction;
+    remotePlayer.heldItemId = buttonItem0;
+    remotePlayer.currentMask = PLAYER_MASK_NONE;
+    remotePlayer.meleeWeaponState = 0;
+    if (visualFlags & (1 << 0)) {
+        remotePlayer.stateFlags1 |= PLAYER_STATE1_SHIELDING;
+    }
+    if (visualFlags & (1 << 1)) {
+        remotePlayer.stateFlags1 |= PLAYER_STATE1_HOSTILE_LOCK_ON;
+    }
+    if (visualFlags & (1 << 2)) {
+        remotePlayer.stateFlags1 |= PLAYER_STATE1_Z_TARGETING;
+    }
+    if (visualFlags & (1 << 3)) {
+        remotePlayer.stateFlags1 |= PLAYER_STATE1_IN_WATER;
+    }
+    if (visualFlags & (1 << 4)) {
+        remotePlayer.stateFlags1 |= PLAYER_STATE1_DAMAGED;
+    }
+    remotePlayer.currentTunic = tunic;
+    remotePlayer.currentBoots = boots;
+    remotePlayer.currentShield = (shield < PLAYER_SHIELD_MAX) ? shield : PLAYER_SHIELD_NONE;
+    remotePlayer.modelGroup = (modelGroup < PLAYER_MODELGROUP_MAX) ? modelGroup : PLAYER_MODELGROUP_DEFAULT;
+    {
+        uint8_t localButtonItem0 = gSaveContext.equips.buttonItems[0];
+        gSaveContext.equips.buttonItems[0] = buttonItem0;
+        Player_SetModelGroup(&remotePlayer, remotePlayer.modelGroup);
+        gSaveContext.equips.buttonItems[0] = localButtonItem0;
+    }
+    remotePlayer.invincibilityTimer = invincibilityTimer;
+    remotePlayer.unk_85C = itemDrawDepth;
+    remotePlayer.unk_862 = getItemDrawId > GID_MAXIMUM ? GID_STONE_OF_AGONY : getItemDrawId;
+    remotePlayer.av1.actionVar1 = actionVar1;
+    remotePlayer.skelAnime.skeleton = remoteSkeletonLimbs;
+    remotePlayer.skelAnime.limbCount = remoteSkeleton->sh.limbCount;
+    remotePlayer.skelAnime.dListCount = remoteSkeleton->dListCount;
+    remotePlayer.skelAnime.jointTable = remoteJointTable;
+    remotePlayer.skelAnime.moveFlags = movementFlags;
+    if (prevTransl != NULL) {
+        remotePlayer.skelAnime.prevTransl = *prevTransl;
+    }
+    remotePlayer.headLimbRot.x = 0;
+    remotePlayer.headLimbRot.y = 0;
+    remotePlayer.headLimbRot.z = 0;
+    if (upperLimbRot != NULL) {
+        remotePlayer.upperLimbRot = *upperLimbRot;
+    } else {
+        remotePlayer.upperLimbRot.x = 0;
+        remotePlayer.upperLimbRot.y = 0;
+        remotePlayer.upperLimbRot.z = 0;
+    }
+    remotePlayer.upperLimbYawSecondary = 0;
+    remotePlayer.unk_6C2 = 0;
+    remotePlayer.unk_6C4 = 0.0f;
+
+    // Anchor stores root motion in the animation. Apply it exactly as the PC dummy player does,
+    // otherwise some poses are rendered partly below the floor.
+    SkelAnime_UpdateTranslation(&remotePlayer.skelAnime, &animationTranslation, rotY);
+    if (movementFlags & 1) {
+        if (!LINK_IS_ADULT) {
+            animationTranslation.x *= 0.64f;
+            animationTranslation.z *= 0.64f;
+        }
+        drawPosition.x += animationTranslation.x * remotePlayer.actor.scale.x;
+        drawPosition.z += animationTranslation.z * remotePlayer.actor.scale.z;
+    }
+    if (movementFlags & 2) {
+        if (!(movementFlags & 4)) {
+            animationTranslation.y *= remotePlayer.ageProperties->unk_08;
+        }
+        drawPosition.y += animationTranslation.y * remotePlayer.actor.scale.y;
+    }
+    remotePlayer.actor.world.pos = drawPosition;
+    remotePlayer.actor.shape.yOffset = 0.0f;
+
+    Matrix_Push();
+    FrameInterpolation_RecordActorPosRotMatrix();
+    Matrix_SetTranslateRotateYXZ(drawPosition.x, drawPosition.y, drawPosition.z, &rotation);
+    Matrix_Scale(player->actor.scale.x, player->actor.scale.y, player->actor.scale.z, MTXMODE_APPLY);
+
+    Multiplayer_SetTunicColorOverride(1, colorR, colorG, colorB);
+    {
+        uint8_t localButtonItem0 = gSaveContext.equips.buttonItems[0];
+        gSaveContext.equips.buttonItems[0] = buttonItem0;
+    Player_DrawImpl(play, remoteSkeletonLimbs, remoteJointTable, remoteSkeleton->dListCount, 0,
+                    tunic, boots, face,
+                    Player_OverrideLimbDrawGameplayDefault, NULL, &remotePlayer);
+        gSaveContext.equips.buttonItems[0] = localButtonItem0;
+    }
+    Multiplayer_SetTunicColorOverride(0, 0, 0, 0);
+
+    Matrix_Pop();
+    gSaveContext.linkAge = localPlayerAge;
+}
+
 void Player_Draw(Actor* thisx, PlayState* play2) {
     PlayState* play = play2;
     Player* this = (Player*)thisx;
+#if defined(__ANDROID__)
+    // Keep Link's title-screen skeleton on the authentic current frame. Generic
+    // matrix interpolation can otherwise combine limb matrices from different
+    // poses on some Android GPUs, producing the detached/deformed rider.
+    int interpolationWasRecording = 0;
+    if (gSaveContext.gameMode == GAMEMODE_TITLE_SCREEN) {
+        interpolationWasRecording = FrameInterpolation_PauseRecord();
+    }
+#endif
 
     Vec3f pos;
     Vec3s rot;
@@ -12708,6 +12923,13 @@ void Player_Draw(Actor* thisx, PlayState* play2) {
 
         Player_DrawGameplay(play, this, lod, gCullBackDList, overrideLimbDraw);
 
+        if ((gSaveContext.gameMode == GAMEMODE_NORMAL) && (gSaveContext.fileNum >= 0) &&
+            (gSaveContext.fileNum <= 2) && (gSaveContext.cutsceneIndex < 0xFFF0) &&
+            (play->csCtx.state == CS_STATE_IDLE) && (this->csAction == 0) &&
+            !(this->stateFlags1 & (PLAYER_STATE1_ON_HORSE | PLAYER_STATE1_IN_CUTSCENE))) {
+            Multiplayer_DrawRemotePlayers(play);
+        }
+
         if (this->invincibilityTimer > 0) {
             POLY_OPA_DISP = Play_SetFog(play, POLY_OPA_DISP);
         }
@@ -12731,6 +12953,12 @@ void Player_Draw(Actor* thisx, PlayState* play2) {
     }
 
     CLOSE_DISPS(play->state.gfxCtx);
+
+#if defined(__ANDROID__)
+    if (gSaveContext.gameMode == GAMEMODE_TITLE_SCREEN) {
+        FrameInterpolation_ResumeRecord(interpolationWasRecording);
+    }
+#endif
 }
 
 void Player_Destroy(Actor* thisx, PlayState* play) {
@@ -12890,7 +13118,8 @@ void func_8084AEEC(Player* this, f32* arg1, f32 arg2, s16 arg3) {
             // sControlInput is NULL to prevent inputs while surfacing after obtaining an underwater item so we want to
             // ignore it for that case
         } else if (sControlInput != NULL) {
-            if (CHECK_BTN_ALL(sControlInput->cur.button, BTN_CUSTOM_MODIFIER1)) {
+            if (CHECK_BTN_ALL(sControlInput->cur.button,
+                              CVarGetInteger(CVAR_SETTING("WalkModifier.Mod1Btn"), BTN_CUSTOM_MODIFIER1))) {
                 swimMod *= CVarGetFloat(CVAR_SETTING("WalkModifier.SwimMapping1"), 1.0f);
             } else if (CHECK_BTN_ALL(sControlInput->cur.button, BTN_CUSTOM_MODIFIER2)) {
                 swimMod *= CVarGetFloat(CVAR_SETTING("WalkModifier.SwimMapping2"), 1.0f);
@@ -13588,7 +13817,7 @@ void Player_Action_8084C760(Player* this, PlayState* play) {
             // player speed in a tunnel
             if (!Player_TryLeavingCrawlspace(this, play)) {
                 // #region SOH [Enhancement]
-                if (CVarGetInteger(CVAR_ENHANCEMENT("CrawlSpeed"), 1) > 1) {
+                if (Player_ShouldUseFastCrawl(this, play)) {
                     this->linearVelocity =
                         sControlInput->rel.stick_y * 0.03f * CVarGetInteger(CVAR_ENHANCEMENT("CrawlSpeed"), 1);
                     // #endregion
@@ -14687,7 +14916,7 @@ void Player_Action_SwingBottle(Player* this, PlayState* play) {
     if (LinkAnimation_Update(play, &this->skelAnime)) {
         if (this->av1.bottleCatchType != BOTTLE_CATCH_NONE) {
             if (!this->av2.startedTextbox) {
-                if (CVarGetInteger(CVAR_ENHANCEMENT("FastDrops"), 0)) {
+                if (CVarGetInteger(CVAR_ENHANCEMENT("FastBottles"), 0)) {
                     this->av1.bottleCatchType = BOTTLE_CATCH_NONE;
                 } else {
                     // 1 is subtracted because `sBottleCatchInfo` does not have an entry for `BOTTLE_CATCH_NONE`
@@ -14730,13 +14959,13 @@ void Player_Action_SwingBottle(Player* this, PlayState* play) {
                     this->av1.bottleCatchType = i + 1;
 
                     this->av2.startedTextbox = false;
-                    if (!CVarGetInteger(CVAR_ENHANCEMENT("FastDrops"), 0)) {
+                    if (!CVarGetInteger(CVAR_ENHANCEMENT("FastBottles"), 0)) {
                         this->stateFlags1 |= PLAYER_STATE1_IN_ITEM_CS | PLAYER_STATE1_IN_CUTSCENE;
                     }
                     this->interactRangeActor->parent = &this->actor;
 
                     Player_UpdateBottleHeld(play, this, catchInfo->itemId, ABS(catchInfo->itemAction));
-                    if (!CVarGetInteger(CVAR_ENHANCEMENT("FastDrops"), 0)) {
+                    if (!CVarGetInteger(CVAR_ENHANCEMENT("FastBottles"), 0)) {
                         Player_AnimPlayOnceAdjusted(play, this, swingEntry->catchAnimation);
                         func_80835EA4(play, 4);
                     }
@@ -14785,6 +15014,8 @@ static AnimSfxEntry D_80854A34[] = {
 
 void Player_Action_8084EFC0(Player* this, PlayState* play) {
     Player_DecelerateToZero(this);
+
+    GameInteractor_Should(VB_EMPTYING_BOTTLE, true, this);
 
     if (LinkAnimation_Update(play, &this->skelAnime)) {
         func_8083C0E8(this, play);
@@ -15121,11 +15352,13 @@ void Player_Action_8084FBF4(Player* this, PlayState* play) {
  */
 s32 Player_UpdateNoclip(Player* this, PlayState* play) {
     sControlInput = &play->state.input[0];
+    s32 noClipMask = CVarGetInteger("gDeveloperTools.NoClipBtn", BTN_L | BTN_DRIGHT);
 
     if (CVarGetInteger(CVAR_DEVELOPER_TOOLS("DebugEnabled"), 0) &&
         ((CHECK_BTN_ALL(sControlInput->cur.button, BTN_A | BTN_L | BTN_R) &&
           CHECK_BTN_ALL(sControlInput->press.button, BTN_B)) ||
-         (CHECK_BTN_ALL(sControlInput->cur.button, BTN_L) && CHECK_BTN_ALL(sControlInput->press.button, BTN_DRIGHT)))) {
+         (noClipMask != 0 && CHECK_BTN_ALL(sControlInput->cur.button, noClipMask) &&
+          CHECK_BTN_ANY(sControlInput->press.button, noClipMask)))) {
 
         sNoclipEnabled ^= 1;
 

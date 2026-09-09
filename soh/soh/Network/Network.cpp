@@ -3,6 +3,17 @@
 #include "Network.h"
 #include <spdlog/spdlog.h>
 #include <libultraship/libultraship.h>
+#include <chrono>
+#include <cstring>
+#if defined(_WIN32)
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#else
+#include <arpa/inet.h>
+#include <netdb.h>
+#include <sys/socket.h>
+#include <unistd.h>
+#endif
 
 // MARK: - Public
 
@@ -11,10 +22,8 @@ void Network::Enable(const char* host, uint16_t port) {
         return;
     }
 
-    if (SDLNet_ResolveHost(&networkAddress, host, port) == -1) {
-        SPDLOG_ERROR("[Network] SDLNet_ResolveHost: {}", SDLNet_GetError());
-    }
-
+    networkHost = host != nullptr ? host : "127.0.0.1";
+    networkPort = port;
     isEnabled = true;
 
     // First check if there is a thread running, if so, join it
@@ -31,7 +40,19 @@ void Network::Disable() {
     }
 
     isEnabled = false;
-    receiveThread.join();
+    {
+        std::lock_guard<std::mutex> lock(networkMutex);
+        if (networkSocket >= 0) {
+#if defined(_WIN32)
+            closesocket(networkSocket);
+#else
+            shutdown(networkSocket, SHUT_RDWR);
+            close(networkSocket);
+#endif
+            networkSocket = -1;
+        }
+    }
+    if (receiveThread.joinable()) receiveThread.join();
 }
 
 void Network::OnIncomingData(char payload[512]) {
@@ -47,8 +68,17 @@ void Network::OnDisconnected() {
 }
 
 void Network::SendDataToRemote(const char* payload) {
-    SPDLOG_DEBUG("[Network] Sending data: {}", payload);
-    SDLNet_TCP_Send(networkSocket, payload, strlen(payload) + 1);
+    if (payload == nullptr) return;
+    std::lock_guard<std::mutex> lock(networkMutex);
+    if (networkSocket < 0 || !isConnected) return;
+    const char* cursor = payload;
+    size_t remaining = strlen(payload) + 1;
+    while (remaining > 0) {
+        const int sent = send(networkSocket, cursor, remaining, 0);
+        if (sent <= 0) break;
+        cursor += sent;
+        remaining -= sent;
+    }
 }
 
 void Network::SendJsonToRemote(nlohmann::json payload) {
@@ -59,49 +89,44 @@ void Network::SendJsonToRemote(nlohmann::json payload) {
 
 void Network::ReceiveFromServer() {
     while (isEnabled) {
-        while (!isConnected && isEnabled) {
-            SPDLOG_TRACE("[Network] Attempting to make connection to server...");
-            networkSocket = SDLNet_TCP_Open(&networkAddress);
-
-            if (networkSocket) {
-                isConnected = true;
-                SPDLOG_INFO("[Network] Connection to server established!");
-
-                OnConnected();
-                break;
+        struct addrinfo hints {};
+        struct addrinfo* addresses = nullptr;
+        hints.ai_family = AF_UNSPEC;
+        hints.ai_socktype = SOCK_STREAM;
+        int socketFd = -1;
+        if (getaddrinfo(networkHost.c_str(), std::to_string(networkPort).c_str(), &hints, &addresses) == 0) {
+            for (auto* address = addresses; address != nullptr && isEnabled; address = address->ai_next) {
+                socketFd = socket(address->ai_family, address->ai_socktype, address->ai_protocol);
+                if (socketFd >= 0 && connect(socketFd, address->ai_addr, address->ai_addrlen) == 0) break;
+                if (socketFd >= 0) {
+#if defined(_WIN32)
+                    closesocket(socketFd);
+#else
+                    close(socketFd);
+#endif
+                }
+                socketFd = -1;
             }
+            freeaddrinfo(addresses);
         }
-
-        SDLNet_SocketSet socketSet = SDLNet_AllocSocketSet(1);
-        if (networkSocket) {
-            SDLNet_TCP_AddSocket(socketSet, networkSocket);
+        if (socketFd < 0) {
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+            continue;
         }
+        {
+            std::lock_guard<std::mutex> lock(networkMutex);
+            networkSocket = socketFd;
+            isConnected = true;
+        }
+        OnConnected();
 
-        // Listen to socket messages
-        while (isConnected && networkSocket && isEnabled) {
-            // we check first if socket has data, to not block in the TCP_Recv
-            int socketsReady = SDLNet_CheckSockets(socketSet, 0);
-
-            if (socketsReady == -1) {
-                SPDLOG_ERROR("[Network] SDLNet_CheckSockets: {}", SDLNet_GetError());
-                break;
-            }
-
-            if (socketsReady == 0) {
-                continue;
-            }
-
+        while (isEnabled && isConnected) {
             char remoteDataReceived[512];
             memset(remoteDataReceived, 0, sizeof(remoteDataReceived));
-            int len = SDLNet_TCP_Recv(networkSocket, &remoteDataReceived, sizeof(remoteDataReceived));
-            if (!len || !networkSocket || len == -1) {
-                SPDLOG_ERROR("[Network] SDLNet_TCP_Recv: {}", SDLNet_GetError());
-                break;
-            }
-
+            const int len = recv(socketFd, remoteDataReceived, sizeof(remoteDataReceived) - 1, 0);
+            if (len <= 0) break;
             HandleRemoteData(remoteDataReceived);
-
-            receivedData.append(remoteDataReceived, len);
+            receivedData.append(remoteDataReceived, static_cast<size_t>(len));
 
             // Proess all complete packets
             size_t delimiterPos = receivedData.find('\0');
@@ -117,10 +142,19 @@ void Network::ReceiveFromServer() {
         }
 
         if (isConnected) {
-            SDLNet_TCP_Close(networkSocket);
+            {
+                std::lock_guard<std::mutex> lock(networkMutex);
+                if (networkSocket >= 0) {
+#if defined(_WIN32)
+                    closesocket(networkSocket);
+#else
+                    close(networkSocket);
+#endif
+                    networkSocket = -1;
+                }
+            }
             isConnected = false;
             OnDisconnected();
-            SPDLOG_INFO("[Network] Ending receiving thread...");
         }
     }
 }
@@ -130,12 +164,12 @@ void Network::HandleRemoteData(char payload[512]) {
 }
 
 void Network::HandleRemoteJson(std::string payload) {
-    SPDLOG_DEBUG("[Network] Received json: {}", payload);
+    SPDLOG_TRACE("[Network] Received JSON payload");
     nlohmann::json jsonPayload;
     try {
         jsonPayload = nlohmann::json::parse(payload);
     } catch (const std::exception& e) {
-        SPDLOG_ERROR("[Network] Failed to parse json: \n{}\n{}\n", payload, e.what());
+        SPDLOG_ERROR("[Network] Failed to parse received JSON: {}", e.what());
         return;
     }
 

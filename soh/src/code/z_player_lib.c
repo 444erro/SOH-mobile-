@@ -1020,6 +1020,14 @@ Color_RGB8 sTunicColors[] = {
     { 0, 60, 100 },
 };
 
+static u8 sMultiplayerTunicColorOverrideEnabled = 0;
+static Color_RGB8 sMultiplayerTunicColorOverride = { 100, 255, 100 };
+
+void Multiplayer_SetTunicColorOverride(uint8_t enabled, uint8_t r, uint8_t g, uint8_t b) {
+    sMultiplayerTunicColorOverrideEnabled = enabled;
+    sMultiplayerTunicColorOverride = (Color_RGB8){ r, g, b };
+}
+
 Color_RGB8 sGauntletColors[] = {
     { 255, 255, 255 },
     { 254, 207, 15 },
@@ -1073,6 +1081,14 @@ void Player_DrawImpl(PlayState* play, void** skeleton, Vec3s* jointTable, s32 dL
         color = &sTemp;
     } else if (tunic == PLAYER_TUNIC_ZORA && CVarGetInteger(CVAR_COSMETIC("Link.ZoraTunic.Changed"), 0)) {
         sTemp = CVarGetColor24(CVAR_COSMETIC("Link.ZoraTunic.Value"), sTunicColors[PLAYER_TUNIC_ZORA]);
+        color = &sTemp;
+    }
+    if (sMultiplayerTunicColorOverrideEnabled) {
+        sTemp = sMultiplayerTunicColorOverride;
+        color = &sTemp;
+    } else if (data == GET_PLAYER(play) && CVarGetInteger(CVAR_GENERAL("Multiplayer.Enabled"), 1) != 0 &&
+               CVarGetInteger(CVAR_GENERAL("Multiplayer.AnchorMode"), 1) != 0) {
+        sTemp = CVarGetColor24(CVAR_GENERAL("Multiplayer.PlayerColor.Value"), (Color_RGB8){ 100, 255, 100 });
         color = &sTemp;
     }
 
@@ -1561,7 +1577,8 @@ void func_800906D4(PlayState* play, Player* this, Vec3f* newTipPos) {
     Matrix_MultVec3f(&D_801260A4[2], &newBasePos[2]);
 
     if (func_80090480(play, NULL, &this->meleeWeaponInfo[0], &newTipPos[0], &newBasePos[0]) &&
-        !(this->stateFlags1 & PLAYER_STATE1_SHIELDING)) {
+        !(this->stateFlags1 & PLAYER_STATE1_SHIELDING) &&
+        !CVarGetInteger(CVAR_ENHANCEMENT("DisableLinkSwordTrail"), 0)) {
         EffectBlure_AddVertex(Effect_GetByIndex(this->meleeWeaponEffectIndex), &this->meleeWeaponInfo[0].tip,
                               &this->meleeWeaponInfo[0].base);
     }

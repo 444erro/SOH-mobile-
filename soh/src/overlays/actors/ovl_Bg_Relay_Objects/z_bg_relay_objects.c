@@ -6,6 +6,7 @@
 
 #include "z_bg_relay_objects.h"
 #include "objects/object_relay_objects/object_relay_objects.h"
+#include "soh/Enhancements/game-interactor/GameInteractor_Hooks.h"
 
 #define FLAGS ACTOR_FLAG_UPDATE_CULLING_DISABLED
 
@@ -117,7 +118,7 @@ void BgRelayObjects_Destroy(Actor* thisx, PlayState* play) {
 
 void func_808A90F4(BgRelayObjects* this, PlayState* play) {
     if (Flags_GetSwitch(play, this->switchFlag)) {
-        if (this->timer != 0) {
+        if (GameInteractor_Should(VB_SWITCH_TIMER_TICK, this->timer != 0, this, &this->timer)) {
             Audio_PlayActorSound2(&this->dyna.actor, NA_SE_EV_SLIDE_DOOR_OPEN);
             if (INV_CONTENT(ITEM_HOOKSHOT) != ITEM_NONE) {
                 this->timer = 120;
@@ -168,7 +169,7 @@ void BgRelayObjects_DoNothing(BgRelayObjects* this, PlayState* play) {
 }
 
 void func_808A932C(BgRelayObjects* this, PlayState* play) {
-    if (this->timer != 0) {
+    if (GameInteractor_Should(VB_SWITCH_TIMER_TICK, this->timer != 0, this, &this->timer)) {
         this->timer--;
     }
     if (this->timer == 0) {

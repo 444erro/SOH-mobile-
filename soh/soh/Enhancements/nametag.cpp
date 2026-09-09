@@ -26,6 +26,7 @@ typedef struct {
     int16_t height;            // Textbox height
     int16_t width;             // Textbox width
     int16_t yOffset;           // Addition Y offset
+    float scale;               // Per-tag scale
     Mtx* mtx;                  // Allocated Mtx for rendering
     Vtx* vtx;                  // Allocated Vtx for rendering
 } NameTag;
@@ -61,7 +62,7 @@ void DrawNameTag(PlayState* play, const NameTag* nameTag) {
         alpha = (200000.0f - nameTag->actor->xyzDistToPlayerSq) / 40000.0f;
     }
 
-    float scale = 75.0f / 100.f;
+    float scale = nameTag->scale > 0.0f ? nameTag->scale : 75.0f / 100.f;
 
     size_t numChar = nameTag->processedText.length();
     // No text to render
@@ -249,6 +250,7 @@ extern "C" void NameTag_RegisterForActorWithOptions(Actor* actor, const char* te
     nameTag.height = height;
     nameTag.width = width;
     nameTag.yOffset = options.yOffset;
+    nameTag.scale = options.scale;
     nameTag.mtx = new Mtx();
     nameTag.vtx = vertices;
 
@@ -268,6 +270,11 @@ extern "C" void NameTag_RemoveAllForActor(Actor* actor) {
             it++;
         }
     }
+}
+
+extern "C" int NameTag_HasForActor(Actor* actor) {
+    return std::any_of(nameTags.begin(), nameTags.end(),
+                       [actor](const NameTag& nameTag) { return nameTag.actor == actor; });
 }
 
 extern "C" void NameTag_RemoveAllByTag(const char* tag) {

@@ -120,7 +120,8 @@ source_group("include" FILES ${Header_Files__include})
 # }}}
 
 # soh (root)
-file(GLOB_RECURSE soh__ RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "soh/*.c" "soh/*.cpp" "soh/*.h" "soh/*.hpp")
+file(GLOB_RECURSE soh__ CONFIGURE_DEPENDS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
+    "soh/*.c" "soh/*.cpp" "soh/*.h" "soh/*.hpp")
 
 # Add specific files that don't match the pattern
 list(APPEND soh__ ${CMAKE_CURRENT_SOURCE_DIR}/soh/Enhancements/savestates_extern.inc)
@@ -210,6 +211,9 @@ set(ALL_FILES
     ${soh__}
     ${soh__Extractor}
     ${src__}
+    ${CMAKE_CURRENT_SOURCE_DIR}/multiplayer/MultiplayerBridge.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/multiplayer/MultiplayerManager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/multiplayer/NetworkManager.cpp
 )
 
 ################################################################################
@@ -423,6 +427,7 @@ elseif ("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU|Clang|AppleClang")
 		">"
         "F3DEX_GBI_2"
         "$<$<BOOL:${BUILD_REMOTE_CONTROL}>:ENABLE_REMOTE_CONTROL>"
+        "$<$<STREQUAL:${CMAKE_SYSTEM_NAME},Android>:ENABLE_REMOTE_CONTROL>"
 		"SPDLOG_ACTIVE_LEVEL=0;"
 		"_CONSOLE;"
 		"_CRT_SECURE_NO_WARNINGS;"

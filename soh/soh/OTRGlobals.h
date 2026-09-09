@@ -36,7 +36,9 @@ const std::string appShortName = "soh";
 #ifdef __WIIU__
 const uint32_t defaultImGuiScale = 3;
 #elif defined (__ANDROID__)
-const uint32_t defaultImGuiScale = 3;
+// Android applies a resolution-aware base scale. "Normal" is the neutral
+// multiplier and remains adjustable from the menu.
+const uint32_t defaultImGuiScale = 1;
 #else
 const uint32_t defaultImGuiScale = 1;
 #endif

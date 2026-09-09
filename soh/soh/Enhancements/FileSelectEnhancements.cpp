@@ -1,4 +1,4 @@
-ï»¿#include "FileSelectEnhancements.h"
+#include "FileSelectEnhancements.h"
 
 #include "soh/OTRGlobals.h"
 
@@ -21,7 +21,7 @@ std::array<std::string, LANGUAGE_MAX> RandomizerSettingsMenuText[RSM_MAX] = {
         // German
         "Generate New Randomizer Seed",
         // French
-        "GÃ©nÃ©rer une nouvelle seed pour le Randomizer",
+        "Générer une nouvelle seed pour le Randomizer",
     },
     {
         // English
@@ -29,7 +29,7 @@ std::array<std::string, LANGUAGE_MAX> RandomizerSettingsMenuText[RSM_MAX] = {
         // German
         "Open Randomizer Settings",
         // French
-        "Ouvrir les paramÃ¨tres du Randomizer",
+        "Ouvrir les paramètres du Randomizer",
     },
     {
         // English
@@ -37,7 +37,7 @@ std::array<std::string, LANGUAGE_MAX> RandomizerSettingsMenuText[RSM_MAX] = {
         // German
         "Generating...",
         // French
-        "GÃ©nÃ©ration en cours...",
+        "Génération en cours...",
     },
     { // English
       "No randomizer seed loaded.\nPlease generate one first"
@@ -54,11 +54,11 @@ std::array<std::string, LANGUAGE_MAX> RandomizerSettingsMenuText[RSM_MAX] = {
       ",\nor drop a spoiler log on the game window.",
 #endif
       // French
-      "Aucune Seed de Randomizer actuellement disponible.\nGÃ©nÃ©rez-en une dans les \"Randomizer Settings\""
+      "Aucune Seed de Randomizer actuellement disponible.\nGénérez-en une dans les \"Randomizer Settings\""
 #if (defined(__WIIU__) || defined(__SWITCH__))
       "."
 #else
-      "\nou glissez un spoilerlog sur la fenÃªtre du jeu."
+      "\nou glissez un spoilerlog sur la fenêtre du jeu."
 #endif
     },
 };

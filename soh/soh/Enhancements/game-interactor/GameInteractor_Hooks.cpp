@@ -29,9 +29,22 @@ void GameInteractor_ExecuteOnGameFrameUpdate() {
     GameInteractor::Instance->ExecuteHooks<GameInteractor::OnGameFrameUpdate>();
 }
 
+void GameInteractor_ExecuteOnCameraState(PlayState* play) {
+    GameInteractor::Instance->ExecuteHooks<GameInteractor::OnCameraState>(play);
+}
+
+void GameInteractor_ExecuteOnPlayDrawBegin() {
+    GameInteractor::Instance->ExecuteHooks<GameInteractor::OnPlayDrawBegin>();
+}
+
 void GameInteractor_ExecuteOnItemReceiveHooks(GetItemEntry itemEntry) {
     GameInteractor::Instance->ExecuteHooks<GameInteractor::OnItemReceive>(itemEntry);
     GameInteractor::Instance->ExecuteHooksForFilter<GameInteractor::OnItemReceive>(itemEntry);
+}
+
+void GameInteractor_ExecuteOnEquipmentDelete(int16_t equipmentType, uint16_t equipValue) {
+    GameInteractor::Instance->ExecuteHooks<GameInteractor::OnEquipmentDelete>(equipmentType, equipValue);
+    GameInteractor::Instance->ExecuteHooksForFilter<GameInteractor::OnEquipmentDelete>(equipmentType, equipValue);
 }
 
 void GameInteractor_ExecuteOnSaleEndHooks(GetItemEntry itemEntry) {

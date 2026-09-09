@@ -1060,7 +1060,7 @@ void CheckTrackerWindow::DrawElement() {
         totalChecksSS << totalChecksAvailable << " Available / ";
     }
     totalChecksSS << totalChecksGotten << " Checked / " << totalChecks << " Total";
-    ImGui::Text(totalChecksSS.str().c_str());
+    ImGui::Text("%s", totalChecksSS.str().c_str());
 
     UIWidgets::PaddedSeparator();
 
@@ -1169,7 +1169,7 @@ void CheckTrackerWindow::DrawElement() {
                     }
                 }
 
-                ImGui::Text(areaTotalsSS.str().c_str());
+                ImGui::Text("%s", areaTotalsSS.str().c_str());
                 UIWidgets::Tooltip(areaTotalsTooltipSS.str().c_str());
             } else {
                 ImGui::Text("???");

@@ -417,10 +417,12 @@ void func_809EE800(EnDivingGame* this, PlayState* play) {
     SkelAnime_Update(&this->skelAnime);
     if (this->unk_292 == Message_GetState(&play->msgCtx) && Message_ShouldAdvance(play)) {
         Message_CloseTextbox(play);
-        if (!Flags_GetEventChkInf(EVENTCHKINF_OBTAINED_SILVER_SCALE)) {
-            func_80088B34(BREG(2) + 50);
-        } else {
-            func_80088B34(BREG(2) + 50);
+        if (GameInteractor_Should(VB_SET_DIVING_GAME_TIME_LIMIT, true)) {
+            if (!Flags_GetEventChkInf(EVENTCHKINF_OBTAINED_SILVER_SCALE)) {
+                func_80088B34(BREG(2) + 50);
+            } else {
+                func_80088B34(BREG(2) + 50);
+            }
         }
         func_800F5ACC(NA_BGM_TIMED_MINI_GAME);
         Player_SetCsActionWithHaltedActors(play, NULL, 7);

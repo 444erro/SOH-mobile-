@@ -149,8 +149,11 @@ void RegisterRupeeDash() {
         if (rupeeDashTimer >= rdmTime) {
             rupeeDashTimer = 0;
             if (gSaveContext.rupees > 0) {
-                uint16_t walletSize = (CUR_UPG_VALUE(UPG_WALLET) + 1) * -1;
-                Rupees_ChangeBy(walletSize);
+                int16_t rupeeChange = -1;
+                if (CVarGetInteger(CVAR_ENHANCEMENT("RupeeDashScaling"), 1)) {
+                    rupeeChange = (CUR_UPG_VALUE(UPG_WALLET) + 1) * -1;
+                }
+                Rupees_ChangeBy(rupeeChange);
             } else {
                 Health_ChangeBy(gPlayState, -16);
             }
@@ -237,7 +240,7 @@ void RegisterDeleteFileOnDeath() {
         if (gPlayState->gameOverCtx.state == GAMEOVER_DEATH_MENU && gPlayState->pauseCtx.state == 9) {
             SaveManager::Instance->DeleteZeldaFile(gSaveContext.fileNum);
             hasAffectedHealth = false;
-            std::reinterpret_pointer_cast<Ship::ConsoleWindow>(
+            std::static_pointer_cast<Ship::ConsoleWindow>(
                 Ship::Context::GetInstance()->GetWindow()->GetGui()->GetGuiWindow("Console"))
                 ->Dispatch("reset");
         }

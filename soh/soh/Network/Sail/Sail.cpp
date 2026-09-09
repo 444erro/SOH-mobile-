@@ -25,7 +25,7 @@ void Sail::OnDisconnected() {
 }
 
 void Sail::OnIncomingJson(nlohmann::json payload) {
-    SPDLOG_INFO("[Sail] Received payload: \n{}", payload.dump());
+    SPDLOG_TRACE("[Sail] Received JSON payload");
 
     nlohmann::json responsePayload;
     responsePayload["type"] = "result";
@@ -56,7 +56,7 @@ void Sail::OnIncomingJson(nlohmann::json payload) {
             }
 
             std::string command = payload["command"].get<std::string>();
-            std::reinterpret_pointer_cast<Ship::ConsoleWindow>(
+            std::static_pointer_cast<Ship::ConsoleWindow>(
                 Ship::Context::GetInstance()->GetWindow()->GetGui()->GetGuiWindow("Console"))
                 ->Dispatch(command);
             responsePayload["status"] = "success";
@@ -80,7 +80,7 @@ void Sail::OnIncomingJson(nlohmann::json payload) {
                 }
 
                 std::string command = payload["effect"]["command"].get<std::string>();
-                std::reinterpret_pointer_cast<Ship::ConsoleWindow>(
+                std::static_pointer_cast<Ship::ConsoleWindow>(
                     Ship::Context::GetInstance()->GetWindow()->GetGui()->GetGuiWindow("Console"))
                     ->Dispatch(command);
                 responsePayload["status"] = "success";

@@ -128,7 +128,7 @@ void CrowdControl::EmitMessage(uint32_t eventId, long timeRemaining, EffectResul
     payload["timeRemaining"] = timeRemaining;
     payload["status"] = status;
 
-    SPDLOG_INFO("[CrowdControl] Sending payload:\n{}", payload.dump());
+    SPDLOG_TRACE("[CrowdControl] Sending JSON payload");
 
     SendJsonToRemote(payload);
 }
@@ -170,11 +170,11 @@ CrowdControl::EffectResult CrowdControl::TranslateGiEnum(GameInteractionEffectQu
 
 CrowdControl::Effect* CrowdControl::ParseMessage(nlohmann::json dataReceived) {
     if (!dataReceived.contains("id") || !dataReceived.contains("type")) {
-        SPDLOG_ERROR("[CrowdControl] Invalid payload received:\n{}", dataReceived.dump());
+        SPDLOG_ERROR("[CrowdControl] Invalid payload received");
         return nullptr;
     }
 
-    SPDLOG_INFO("[CrowdControl] Received payload:\n{}", dataReceived.dump());
+    SPDLOG_TRACE("[CrowdControl] Received JSON payload");
 
     if (!dataReceived.contains("code")) {
         // This seems to happen when the CC session ends

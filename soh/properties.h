@@ -11,4 +11,4 @@
 #define VER_INTERNALNAME_STR     "soh\0"
 #define VER_ORIGINALFILENAME_STR "soh.exe\0"
 
-#define VER_FILEDESCRIPTION_STR  "Ship of Harkinian - Blair Charlie\0"
+#define VER_FILEDESCRIPTION_STR  "Ship of Harkinian - SOH-Mobile-Anchor\0"
