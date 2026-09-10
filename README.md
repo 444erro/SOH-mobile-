@@ -2,8 +2,7 @@
 
 A port of Ship of Harkinian to Android.
 
-> * Esta versão para Android é uma mistura da versão "Water Dish" ( https://github.com/Waterdish/Shipwright-Android ) com a versão para PC ( https://github.com/HarbourMasters/Shipwright ). Eu não sabia que existiam outras versões para celular com suporte para jogo online, então fiz isso por diversão! Algumas coisas são diferentes da versão para PC porque eu comecei pela versão "Water Dish", em vez de usar a versão para PC como em outras versões disponíveis por aí!
-Vou continuar atualizando? Acho que não. Se o desempenho for ruim no seu celular, NÃO ESPERE MILAGRES...
+> * This Android version is a blend of the "Water Dish" version ( https://github.com/Waterdish/Shipwright-Android ) and the PC version ( https://github.com/HarbourMasters/Shipwright ). I wasn't aware there were other mobile versions with online multiplayer support, so I made this just for fun! Some things differ from the PC version because I started with the "Water Dish" version instead of using the PC version as a base, unlike other versions out there! Will I keep updating it? Probably not. If performance is poor on your phone, DON'T EXPECT MIRACLES...
 
 > * If you want to create a version yourself, I recommend getting the PC version's files first theys are more recent then porting them to Android!
 
